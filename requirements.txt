@@ -1,4 +1,4 @@
-IPython==9.5.0
+IPython==8.18
 emoji==2.14.1
 imbalanced-learn==0.13.0
 importlib_metadata==8.7.0
