@@ -1,0 +1,23 @@
+# Requirements for the Streamlit app
+# To install, run: pip install -r requirements.txt
+importlib_metadata==8.7.0
+joblib==1.5.1
+matplotlib==3.9.2
+numpy==2.3.2
+pandas==2.3.1
+pillow==11.3.0
+pytest==8.4.1
+scikit-learn==1.6.1
+scipy==1.16.1
+squarify==0.4.3
+streamlit==1.49.1
+toml==0.10.2
+tomli==2.2.1
+plotly==5.16.1
+wordcloud==1.9.4
+graphviz 
+requests
+xgboost>=1.7          
+torch
+torchvision
+ 
