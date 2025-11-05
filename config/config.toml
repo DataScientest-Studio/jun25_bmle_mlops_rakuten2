@@ -1,0 +1,370 @@
+# ============================
+# CONFIGURATION RAKUTEN 
+# ============================
+
+# ========================================
+# CHEMINS
+# ========================================
+[paths]
+# Données CSV
+x_train_csv = "data/raw/X_train_update.csv"
+y_train_csv = "data/raw/Y_train_CVw08PX.csv"
+x_test_csv  = "data/raw/X_test_update.csv"
+
+# Images (renommé pour clarté)
+#image_train_dir = "data/images/images/image_train"
+#image_test_dir  = "data/images/images/image_test"
+# ========================================
+# IMAGES (Configuration pour pipelines)
+# ========================================
+[images]
+# Chemins des images
+train_dir = "data/images/images/image_train"
+test_dir  = "data/images/images/image_test"
+
+# ========================================
+# SORTIES
+# ========================================
+[outputs]
+model_out = "artifacts/model_{kind}_{phase}.joblib"
+pred_out  = "results/preds_{kind}_{phase}.csv"
+compare_out = "models/compare_cv_results.csv"
+oof_out   = "results/preds_oof_{kind}.csv"
+svd_preview_b4  = "results/features_b4_svd100_preview.csv"
+summary_csv = "results/baseline_results_summary.csv"
+
+# Logs et cache
+log_dir = "C:/Users/colle/Desktop/rakuten-logs"
+
+# Export features intermédiaires
+export_features = true
+
+
+# ========================================
+# REPRODUCTIBILITÉ
+# ========================================
+[random]
+seed = 42
+
+# ========================================
+# COMPUTE
+# ========================================
+[compute]
+n_jobs = -1  # Parallélisme
+use_cache = true
+cache_verbose = 3
+
+# ========================================
+# DEBUG
+# ========================================
+[debug]
+verbose_pipeline = true
+save_intermediate_features = true
+show_feature_stats = true
+debug_sample_size = 5
+
+# ========================================
+# SHAP
+# ========================================
+[explainability]
+enable_shap = true
+use_svd_features = false  # IMPORTANT: shap sur les tfidf bruts
+save_dir = "results/shap"
+enable_shap_decomposed = true  
+shap_samples = 10000
+shap_decomposed_samples = 1000  # Moins pour eviter OOM
+
+# ========================================
+# FEATURES TEXTE
+# ========================================
+[features.text]
+max_features = 30000
+ngram_min = 1
+ngram_max = 2
+min_df = 5
+max_df = 0.95
+sublinear_tf = true
+norm = "l2"
+strip_accents = "unicode"
+
+# Nettoyage
+translate_map_path = "config/translate_map_starter_from_cleaned.json"
+use_stem = true
+clean_special = true
+handle_emojis = true
+remove_numbers = false
+use_lemmatization = false
+
+# Features additionnelles
+use_text_stats = true
+use_text_stats_pro = true
+use_language_detection = false  # Coûteux
+
+# --- Lexiques (chi2) ---
+[features.text.lexicon]
+enabled = true
+top_k = 60
+min_df = 3
+max_df = 0.98
+
+# --- TF-IDF Char ---
+[features.text.char]
+enabled = false
+analyzer = "char_wb"
+ngram_min = 2
+ngram_max = 3
+min_df = 5
+max_df = 0.95
+sublinear_tf = true
+
+# --- Pondération branches texte ---
+[features.text.weights]
+tfidf_word = 1.0
+tfidf_char = 0.6
+has_desc = 0.2
+title_len = 0.1
+text_stats = 0.25
+text_stats_pro = 0.35
+lexicon = 0.6
+language = 0.0  # 0 si use_language_detection = false
+
+# --- SVD post-texte ---
+[features.text.svd]
+enabled = true
+n_components = 600
+random_state = 42
+l2norm = true
+
+# --- Vocab build (pour translate_map) ---
+[features.text.vocab_build]
+top_k = 20000
+max_new = 800
+
+# ========================================
+# FEATURES IMAGES
+# ========================================
+
+# --- Pixels bruts (optionnel, désactiver si CNN) ---
+[features.image.pixels]
+enabled = false  # Mettre false si CNN activé
+flatten = true
+# Taille pour pixels bruts
+size = [250, 250]
+
+# Réduction de dimension pour pixels
+[images.dim_reduction]
+enabled = false
+method = "pca"
+n_components = 500
+random_state = 42
+
+#[features.image.pixels.pca]
+#enabled = true
+#n_components = 500
+#random_state = 42
+
+# --- CNN ResNet/ViT ---
+[features.image.cnn]
+# IMPORTANT : Activer CNN ici
+enabled = true  # true pour utiliser CNN, false pour désactiver
+
+# Architecture
+arch = "resnet50"  # Options: "resnet18", "resnet50", "resnet101"
+
+# Chargement
+batch_size = 16  # 16-32 recommandé, réduire si OOM
+device = "auto"  # "auto", "cpu", "cuda"
+use_imagenet_norm = true
+fallback_zero = true  # Vecteur zéro si image manquante
+dtype = "float32"
+num_workers = 0  
+
+# Fine-tuning (optionnel)
+finetune_epochs = 5  # 0 = pas de FT, 3-5 pour FT léger
+finetune_lr = 0.0003
+finetune_weight_decay = 0.01
+finetune_max_n = 8000
+trainable_last_n = 2  # Défiger dernières couches
+ft_patience = 3
+label_smoothing = 0.0
+
+# Augmentation (actif pendant FT uniquement)
+aug_hflip_p = 0.2
+aug_color_jitter = 0.0
+random_resized_crop_scale = [0.9, 1.0]
+random_resized_crop_ratio = [0.95, 1.05]
+mixup_alpha = 0.0
+cutmix_alpha = 0.0
+
+# Grad-CAM (explicabilité)
+save_head_path = "artifacts/head_ft.pt"
+save_head_normalize = true
+
+# Optimisation
+foreach = true
+
+# SVD post-CNN (optionnel)
+[features.image.cnn.svd]
+enabled = true  # true pour réduire dimension après CNN
+n_components = 500
+random_state = 42
+
+# --- ViT (Vision Transformer, optionnel) ---
+[features.image.vit]
+enabled = false  # true pour utiliser ViT en plus/à la place de ResNet
+hf_model_name = "google/vit-base-patch16-224"
+hf_revision = "main"
+hf_feature_dim = 768
+hf_use_fast = true
+trainable_last_layers = 1
+
+# --- Statistiques images (optionnel) ---
+[features.image.stats]
+enabled = false  # true pour ajouter des stats basiques
+fast = true
+fast_size = 128
+entropy_bins = 128
+white_threshold = 230
+black_threshold = 25
+min_area = 16
+drop_size_features = true
+keep_bpp = false
+adaptive_edge_thr = true
+edge_thr_min = 8.0
+edge_thr_rel = 0.12
+offset_power = 2.0
+offset_clip = 1.0
+n_jobs = 4
+
+# ========================================
+# FUSION MULTIMODALE
+# ========================================
+[fusion.weights]
+# RÈGLE : Si features.image.cnn.enabled = true → image_cnn > 0
+text = 1.0
+image_pixels = 0.0     # 0 si CNN activé, 1.0 si pixels seuls
+image_cnn = 0.8        # 1.0 si CNN activé, 0 sinon
+image_cnn_vit = 0.0    # 1.0 si ViT activé
+image_stats = 0.0      # 0.5-1.0 si stats activées
+
+# ========================================
+# SAMPLING (rééquilibrage classes)
+# ========================================
+[sampling]
+major_class = 2583
+major_cap = 3000
+tail_min = 1500       
+
+# ========================================
+# MODÈLE
+# ========================================
+[data]
+n_classes = 27
+
+[model]
+name = "xgb"  # Options: "lr", "svc", "xgb", "lgbm"
+use_class_weight = false    # si XGB c'est preferable de mettre false
+ovr = false
+
+# --- Logistic Regression ---
+[model.lr]
+solver = "saga"
+penalty = "l2"
+C = 1.0
+max_iter = 4000
+tol = 0.001
+verbose = 0
+multi_class = "auto"
+fit_intercept = true
+l1_ratio = 0.0
+
+# --- Linear SVC ---
+[model.svc]
+C = 1.0
+loss = "squared_hinge"
+dual = false
+penalty = "l2"
+max_iter = 4000
+tol = 0.0005
+verbose = 1
+
+# --- XGBoost ---
+[model.xgb]
+n_estimators = 2000
+learning_rate = 0.05
+max_depth = 8
+subsample = 0.8
+colsample_bytree = 0.8
+reg_alpha = 0.0
+reg_lambda = 1.0
+tree_method = "hist"
+verbosity = 2            #0=silent, 1=warning, 2=info, 3=debug
+early_stopping_rounds = 50
+
+# --- LightGBM ---
+[model.lgbm]
+n_estimators = 1200
+learning_rate = 0.05
+num_leaves = 255
+max_depth = -1
+feature_fraction = 0.8
+bagging_fraction = 0.8
+bagging_freq = 1
+min_child_samples = 40
+reg_alpha = 0.0
+reg_lambda = 1.0
+min_split_gain = 0.0
+min_sum_hessian_in_leaf = 0.001
+max_bin = 511
+force_row_wise = true
+verbosity = -1
+early_stopping_rounds = 50
+
+# ========================================
+# VALIDATION CROISÉE
+# ========================================
+[cv]
+enabled = true
+splits = 3
+shuffle = true
+random_state = 42
+verbose_progress = true  
+progress_every_n = 500 
+
+# ========================================
+# NOTES ET RECOMMANDATIONS
+# ========================================
+# 
+# Configuration rapide (test sans FT) :
+# [features.image.cnn]
+# enabled = true
+# finetune_epochs = 0
+# [fusion.weights]
+# image_cnn = 1.0
+#
+# Configuration optimale (avec FT) :
+# [features.image.cnn]
+# enabled = true
+# finetune_epochs = 3
+# trainable_last_n = 1
+# aug_hflip_p = 0.2
+# [fusion.weights]
+# image_cnn = 1.0
+#
+# Configuration économe (ResNet18) :
+# [features.image.cnn]
+# enabled = true
+# arch = "resnet18"  # 512-d au lieu de 2048-d
+# batch_size = 16
+# [features.image.cnn.svd]
+# enabled = true
+# n_components = 100
+#
+# Configuration hybride (ResNet + ViT) :
+# [features.image.cnn]
+# enabled = true
+# [features.image.vit]
+# enabled = true
+# [fusion.weights]
+# image_cnn = 1.0
+# image_cnn_vit = 1.0

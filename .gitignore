@@ -1,89 +1,75 @@
-# Byte-compiled / optimized / DLL files
+# Fichiers de configuration
+# Environnements
+venv/
+.venv*/
+env/
+ENV/
+
+# Python caches
 __pycache__/
 *.py[cod]
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
-*.egg
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# DotEnv configuration
-.env
-
-# Database
-*.db
-*.rdb
-
-# Pycharm
-.idea
-
-# VS Code
-.vscode/
-
-# Spyder
-.spyproject/
-
-# Jupyter NB Checkpoints
+# Jupyter
 .ipynb_checkpoints/
 
-# exclude data from source control by default
-/data/
+# Données lourdes (adapte si besoin)
+data/images/
+Scripts perso.raku
+/venv/
+/.venv*/
 
-# Mac OS-specific storage files
+# caches / artefacts locaux
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Données lourdes (adapte si besoin)
+data/images/
+data/raw/
+
+# OS
 .DS_Store
+Thumbs.dbresults/*.npy
+results/*.npz
+results/*_oof.npy
+results/*_oof.npz
+results/*svd*_preview.csv
+results/*svd*_preview.csv.gz
+data/X_train_update_with_imgstats.csv
+data/image_object_dims.csv
+data/X_train_update
+models/*.joblib
+notebooks/df.csvresults/Sorties_�_enregistrer/
+results/*_oof.*
+results/*svd*_preview.csv*
+notebooks/df.csv
+results/Sorties_a_enregistrer/
+results/desktop.ini
+results/GREG B4 PCA
+artifacts/
+# outputs lourds
+models/*.joblib
+*.npy
+*.npz
+*.pt
+*.h5
+# Bytecode / caches
+__pycache__/
+*.pyc
+*.pyo
 
-# vim
-*.swp
-*.swo
 
-# Mypy cache
-.mypy_cache/
+results/
+reports/
+models/*.joblib
+*.npy
+*.npz
+*.pt
+*.h5
+*.pkl
+
