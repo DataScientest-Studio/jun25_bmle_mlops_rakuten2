@@ -30,6 +30,15 @@ Utilisation:
     # Utiliser un dataset spécifique
     python scripts/training.py --dataset-hash 8297115e
 
+    # 1. Vérifier que PostgreSQL tourne
+    docker ps | grep rakuten_db
+
+    # 2. Entraîner avec PostgreSQL
+    python scripts/training.py \
+  --cv \
+  --evaluate-on-train \
+  --model-name rakuten_prod_$(date +%Y%m%d)
+
 """
 import argparse
 import logging
