@@ -1,0 +1,24 @@
+# API Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.20
+
+# Database
+psycopg2-binary==2.9.11
+
+# MLflow
+mlflow==2.18.0
+
+# Data Science
+numpy>=2.3.2
+pandas>=2.3.1
+scikit-learn>=1.6.1
+joblib>=1.5.1
+
+# Machine Learning models
+xgboost>=1.7.6
+lightgbm>=4.0.0
+
+# Utilities
+python-dotenv==1.2.1
+pydantic==2.12.4

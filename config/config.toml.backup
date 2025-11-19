@@ -26,7 +26,7 @@ test_dir  = "data/images/images/image_test"
 # SORTIES
 # ========================================
 [outputs]
-model_out = "models/model_full_pipeline_joblib"
+model_out = "artifacts/model_{kind}_{phase}.joblib"
 pred_out  = "results/preds_{kind}_{phase}.csv"
 compare_out = "models/compare_cv_results.csv"
 oof_out   = "results/preds_oof_{kind}.csv"
@@ -39,12 +39,7 @@ log_dir = "C:/Users/colle/Desktop/rakuten-logs"
 # Export features intermédiaires
 export_features = true
 
-[database]
-host = "localhost"
-port = 5433
-database = "rakuten"
-user = "mlops"
-password = "mlops"
+
 # ========================================
 # REPRODUCTIBILITÉ
 # ========================================
@@ -125,7 +120,7 @@ sublinear_tf = true
 # --- Pondération branches texte ---
 [features.text.weights]
 tfidf_word = 1.0
-tfidf_char = 0.0
+tfidf_char = 0.6
 has_desc = 0.2
 title_len = 0.1
 text_stats = 0.25
@@ -295,22 +290,22 @@ verbose = 1
 
 # --- XGBoost ---
 [model.xgb]
-n_estimators = 20
-learning_rate = 0.5
-max_depth = 3
+n_estimators = 2000
+learning_rate = 0.05
+max_depth = 8
 subsample = 0.8
 colsample_bytree = 0.8
 reg_alpha = 0.0
 reg_lambda = 1.0
 tree_method = "hist"
-verbosity = 1            #0=silent, 1=warning, 2=info, 3=debug
+verbosity = 2            #0=silent, 1=warning, 2=info, 3=debug
 early_stopping_rounds = 50
 
 # --- LightGBM ---
 [model.lgbm]
-n_estimators = 10
-learning_rate = 0.5
-num_leaves = 31
+n_estimators = 1200
+learning_rate = 0.05
+num_leaves = 255
 max_depth = -1
 feature_fraction = 0.8
 bagging_fraction = 0.8
@@ -320,7 +315,7 @@ reg_alpha = 0.0
 reg_lambda = 1.0
 min_split_gain = 0.0
 min_sum_hessian_in_leaf = 0.001
-max_bin = 255
+max_bin = 511
 force_row_wise = true
 verbosity = -1
 early_stopping_rounds = 50
@@ -331,7 +326,6 @@ early_stopping_rounds = 50
 [cv]
 enabled = true
 splits = 3
-
 shuffle = true
 random_state = 42
 verbose_progress = true  
