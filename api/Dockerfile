@@ -21,8 +21,8 @@ RUN pip install --no-cache-dir \
     torchvision==0.20.1 \
     --index-url https://download.pytorch.org/whl/cpu
 
-# Étape 2 : filtrer torch/torchvision et installer le reste des dépendances
-RUN grep -vE "^torch==|^torchvision==" requirements_working_exact.txt > requirements_filtered.txt && \
+# Étape 2 : filtrer torch/torchvision et tous les packages NVIDIA CUDA et installer le reste des dépendances
+RUN grep -vE "^torch==|^torchvision==|^nvidia-|^triton==" requirements_working_exact.txt > requirements_filtered.txt && \
     pip install --no-cache-dir -r requirements_filtered.txt
 
 # NLTK (stopwords, tokenisation)
