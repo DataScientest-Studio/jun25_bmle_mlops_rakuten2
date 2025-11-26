@@ -10,10 +10,10 @@ services:
       POSTGRES_USER: mlops
       POSTGRES_PASSWORD: mlops
     volumes:
-      - ./import:/import:ro   # Monte les CSV d'import en lecture seule dans le conteneur
-      - ./sql:/sql:ro         # Monte les scripts SQL pour des exécutions répétables via init.sh
-      - ./mlflow/sql/init-mlflow-db.sql:/docker-entrypoint-initdb.d/01-init-mlflow.sql:ro
-      - ./airflow/sql/init-airflow-db.sql:/docker-entrypoint-initdb.d/02-init-airflow.sql:ro
+      - ./import:/import:ro                               # Monte les CSV d'import en lecture seule dans le conteneur
+      - ./postgres/sql:/docker-entrypoint-initdb.d/sql:ro                                     # Monte les scripts SQL pour exécution manuelle via init.sh
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+      - ./snapshot.json:/docker-entrypoint-initdb.d/snapshot.json:ro
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mlops -d rakuten"]

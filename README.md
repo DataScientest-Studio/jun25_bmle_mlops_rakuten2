@@ -54,17 +54,24 @@ flowchart LR
 
 ## 4. Mise en route & prérequis
 
-### 4.1 Base Postgres (Docker)
+### 4.1 Ensemble des microservices
 ```bash
-docker compose up -d postgres            # démarre rakuten_db
-bash init.sh                             # charge les CSV, crée les tables et enregistre le snapshot
+docker compose up -d
 ```
+
+#### Database
 - Accès local : `postgres://mlops:mlops@localhost:5433/rakuten`.
 - Vérification rapide :
 ```sql
 SELECT COUNT(*) FROM project.items;
 SELECT prdtypecode, COUNT(*) FROM project.items GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
 ```
+
+#### Airflow
+- Accès local :
+
+#### Mlflow
+- Accès local :
 
 ### 4.2 Environnement ML
 - **Python** : 3.10+ recommandé, installer `pip install -r requirements.txt`.
