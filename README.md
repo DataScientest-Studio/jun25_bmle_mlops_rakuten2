@@ -18,25 +18,38 @@ Plateforme complète pour la classification produits du challenge Rakuten, combi
 ```mermaid
 flowchart LR
     subgraph Data Layer
-        CSV[X/Y CSV<br/>import/] -->|COPY| PG[(Postgres 16)]
-        Images[data/images] --> Pipelines
+        CSV[text data] -->|COPY| PG[(Postgres 16)]
+        Images[image data] --> DI
         snapshot[snapshot.json]
     end
 
-    subgraph Pipelines (src/pipeline_steps)
+    subgraph Pipelines
         DI(Data Ingestion) --> DV(Data Validation) --> DT(Data Transformation)
-        DT --> MT(Model Training) --> ME(Model Evaluation)
+        DT --> MT(Model Training)
+    end
+
+    subgraph MLOps Services
+        MLflow[MLflow<br/>:5000]
+        API[FastAPI<br/>:8000]
+        Airflow[Airflow<br/>:8081]
     end
 
     PG --> DI
-    DT --> Artifacts[(artifacts/, models/, results/)]
+    MT --> MLflow
+    MT --> Artifacts[(artifacts/, models/, results/)]
+    Artifacts --> API
     Artifacts --> Streamlit
+    Airflow --> Pipelines
     Streamlit --> Users((Utilisateurs))
+    API --> Users
     tools[tools/* scripts] --> Pipelines
 ```
 
 - **Base de données** : `docker-compose.yml` expose PostgreSQL (`rakuten_db`) avec tout le schéma `project.*`.
 - **Pipeline ML** : `scripts/train_pipeline.py` orchestre les 5 étapes sous `src/pipeline_steps`.
+- **MLflow** : tracking des expériences et registry des modèles.
+- **API** : FastAPI pour servir les prédictions en temps réel.
+- **Airflow** : orchestration des pipelines d'entraînement automatisés.
 - **Serving** : `streamlit_app/` charge les artefacts Joblib/NPZ pour proposer une expérience interactive, complétée par une inference lite (`streamlit_app/inference_lite.py`).
 
 ---
@@ -54,26 +67,51 @@ flowchart LR
 
 ## 4. Mise en route & prérequis
 
-### 4.1 Ensemble des microservices
+### 4.1 Initialisation du projet
+
+1. **Télécharger le dump de données** : récupérer le fichier `rakuten_dump.sql` (ou via DVC `rakuten_dump.sql.dvc`) et placer les CSV dans `import/`.
+
+2. **Générer le hash des données** :
+```bash
+./init.sh
+```
+Ce script exécute `etl/manifest_and_hash.py` pour calculer le SHA256 combiné des CSV et mettre à jour `snapshot.json`.
+
+3. **Lancer l'ensemble des microservices** :
 ```bash
 docker compose up -d
 ```
 
+### 4.2 Services disponibles
+
+| Service | Port | URL locale | Credentials |
+| --- | --- | --- | --- |
+| **PostgreSQL** | 5432 | `postgres://mlops:mlops@localhost:5432/rakuten` | mlops / mlops |
+| **MLflow** | 5000 | http://localhost:5000 | — |
+| **API FastAPI** | 8000 | http://localhost:8000 | — |
+| **Airflow** | 8081 | http://localhost:8081 | admin / admin123 |
+
 #### Database
-- Accès local : `postgres://mlops:mlops@localhost:5433/rakuten`.
 - Vérification rapide :
 ```sql
 SELECT COUNT(*) FROM project.items;
 SELECT prdtypecode, COUNT(*) FROM project.items GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
 ```
 
+#### MLflow
+- Tracking server pour les expérimentations ML
+- Backend store : PostgreSQL (`mlflow` database)
+- Artifacts : `/mlflow/artifacts`
+
+#### API
+- Endpoint de prédiction et de training exposés via FastAPI
+- Documentation Swagger : http://localhost:8000/docs
+
 #### Airflow
-- Accès local :
+- Orchestration des pipelines d'entraînement
+- DAG principal : `rakuten_training_pipeline`
 
-#### Mlflow
-- Accès local :
-
-### 4.2 Environnement ML
+### 4.3 Environnement ML
 - **Python** : 3.10+ recommandé, installer `pip install -r requirements.txt`.
 - **GPU** : facultatif (accélère `CNNFeaturizer` via PyTorch). Les paramètres `features.image.cnn.device` et `batch_size` sont configurables.
 - **Configuration** : `config/config.toml` centralise chemins, seeds, options de features, résampling et fusion multimodale.
