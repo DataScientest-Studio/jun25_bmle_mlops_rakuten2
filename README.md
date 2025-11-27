@@ -35,6 +35,9 @@
 git clone <repo-url>
 cd jun25_bmle_mlops_rakuten2
 
+# Initialiser les variables d'environnement à partir du template
+cp .env.example .env
+
 # Option A : Partir des CSV bruts Rakuten
 # 1. Placer les fichiers dans ./import/ pour qu'ils soient importés par ./postgres/09_copy_raw.sql pendant l'initialisation de la base de données
 #    - X_train_update.csv
@@ -86,7 +89,8 @@ flowchart LR
     MT --> Artifacts[(models/)]
     Artifacts --> API
     Artifacts --> Streamlit
-    Airflow --> API
+    API --> Airflow
+    Airflow --> MT
     API --> Users((Users))
     Streamlit --> Users
 ```

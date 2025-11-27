@@ -6,9 +6,9 @@ services:
     ports:
       - "5433:5432"  # Expose le port Postgres pour les clients locaux
     environment:
-      POSTGRES_DB: rakuten
-      POSTGRES_USER: mlops
-      POSTGRES_PASSWORD: mlops
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - ./import:/import:ro                               # Monte les CSV d'import en lecture seule dans le conteneur
       - ./postgres/sql:/docker-entrypoint-initdb.d/sql:ro                                     # Monte les scripts SQL pour exécution manuelle via init.sh
@@ -45,7 +45,7 @@ services:
     command:
       [
         "mlflow", "server",
-        "--backend-store-uri", "postgresql://mlops:mlops@postgres:5432/mlflow",
+        "--backend-store-uri", "postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@postgres:5432/mlflow",
         "--default-artifact-root", "/mlflow/artifacts",
         "--host", "0.0.0.0",
         "--port", "5000",
@@ -63,9 +63,9 @@ services:
     environment:
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_NAME=rakuten
-      - DATABASE_USER=mlops
-      - DATABASE_PASSWORD=mlops
+      - DATABASE_NAME=${DATABASE_NAME}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
     volumes:
       - ./models:/app/models
@@ -82,18 +82,18 @@ services:
     container_name: rakuten_airflow
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      - "${AIRFLOW_PORT}:8080"
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://mlops:mlops@postgres:5432/airflow
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@postgres:5432/airflow
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
-      - _AIRFLOW_WWW_USER_USERNAME=admin
-      - _AIRFLOW_WWW_USER_PASSWORD=admin123
+      - _AIRFLOW_WWW_USER_USERNAME=${AIRFLOW_USER}
+      - _AIRFLOW_WWW_USER_PASSWORD=${AIRFLOW_PASSWORD}
       - AIRFLOW__CORE__FERNET_KEY=81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs=
-      - AIRFLOW__WEBSERVER__SECRET_KEY=rakuten_secret_key_2025
-      - AIRFLOW_CONN_RAKUTEN_API=http://api:8000
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_SECRET_KEY}
+      - AIRFLOW_CONN_RAKUTEN_API=http://api:${API_PORT}
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - _PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-http==4.5.0 mlflow
     volumes:
@@ -105,7 +105,7 @@ services:
     command: >
       bash -c "
         airflow db init
-        airflow users create --username admin --password admin123 --firstname Admin --lastname User --role Admin --email admin@rakuten.com 2>/dev/null || true &&
+        airflow users create --username ${AIRFLOW_USER} --password ${AIRFLOW_PASSWORD} --firstname Admin --lastname User --role Admin --email ${AIRFLOW_EMAIL} 2>/dev/null || true &&
         airflow webserver -p 8080 & airflow scheduler
       "
     networks:

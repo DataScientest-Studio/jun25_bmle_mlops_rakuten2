@@ -16,4 +16,4 @@ if [[ -z "$DATA_HASH" ]]; then
   exit 1
 fi
 
-echo "Hash combiné : $DATA_HASH"Ò
+echo "Hash combiné : $DATA_HASH"
