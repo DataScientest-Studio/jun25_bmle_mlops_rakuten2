@@ -10,3 +10,9 @@
 
 - Static assets live under `assets/`.
 - Global styles are in `style.css` and injected by `app.py`.
+
+## Run
+
+```
+streamlit run app.py --server.port 8501
+```

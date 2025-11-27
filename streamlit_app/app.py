@@ -42,7 +42,7 @@ def run():
     # )
     st.sidebar.markdown("## Classification Multimodale des Produits - Rakuten France")
 
-    tab_name = st.sidebar.radio("", list(TABS.keys()), 0)
+    tab_name = st.sidebar.radio("Navigation", list(TABS.keys()), 0, label_visibility="hidden")
     # st.sidebar.markdown("---")
     # st.sidebar.markdown(f"## {config.PROMOTION}")
     st.sidebar.markdown("## Auteurs")

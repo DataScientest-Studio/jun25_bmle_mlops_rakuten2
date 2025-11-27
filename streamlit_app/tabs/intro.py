@@ -16,8 +16,10 @@ def run():
 
     st.header("Présentation du projet")
     st.write("""
-    Ce projet consiste en l'élaboration d'un modèle robuste pour effectuer de la classification automatique de produits issus du catalogue du site e-commerce Rakuten France, 
-    utilisant à la fois les données textuelles (titre et description) et les images fournies pour chaque article.
+    Ce projet a pour objectifs :
+    - l'élaboration d'un modèle de classification multimodale (texte + image) de produits pour le site e-commerce Rakuten France
+    - la mise en place d'une architecture MLOps pour le développement, l'entraînement et le déploiement du modèle
+    - la mise en place d'une interface utilisateur pour l'utilisation du modèle
     """)
 
     st.header("En savoir plus")
