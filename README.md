@@ -9,10 +9,9 @@
 ## Table des matières
 
 - [Quick Start](#quick-start)
-- [Architecture](#architecture)
 - [Pipeline ML](#pipeline-ml)
-- [Configuration](#configuration)
-- [Outils](#outils)
+- [Architecture MLOps](#architecture-mlops)
+- [Structure détaillée du projet](#structure-détaillée-du-projet)
 - [Ressources](#ressources)
 - [Licence](#licence)
 
@@ -37,21 +36,21 @@ uv venv --python 3.10
 source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# Initialiser les variables d'environnement à partir du template
+# Initialiser les variables d'environnement à partir du template et les modifier selon besoin
 cp .env.example .env
 
 # Option A : Partir des CSV bruts Rakuten
-# 1. Placer les fichiers dans ./data/raw/ pour qu'ils soient importés par ./postgres/09_copy_raw.sql pendant l'initialisation de la base de données
+# A1. Placer les fichiers dans ./data/raw/ pour qu'ils soient importés par ./postgres/09_copy_raw.sql pendant l'initialisation de la base de données
 #    - X_train_update.csv
 #    - Y_train_CVw08PX.csv  
 #    - X_test_update.csv
-# 2. Configurer la valeur LOAD_DB_DUMP=0 dans .env
-# 3. Générer le hash et préparer les données
+# A2. Configurer la valeur LOAD_DB_DUMP=0 dans .env
+# A3. Générer le hash et préparer les données
 # ./init.sh
 
 # Option B : Télécharger le dump SQL pré-généré via DVC puis charger le dump
-# 1. dvc pull ./postgres/dump/rakuten_dump.sql.dvc
-# 2. Configurer la valeur LOAD_DB_DUMP=1 dans .env
+# B1. dvc pull ./postgres/dump/rakuten_dump.sql.dvc
+# B2. Configurer la valeur LOAD_DB_DUMP=1 dans .env
 
 # Lancer les services
 docker compose up -d
@@ -65,116 +64,6 @@ docker compose up -d
 | MLflow         | http://localhost:5000                                  | —                     |
 | API FastAPI    | http://localhost:8000                                  | —                     |
 | Airflow        | http://localhost:8081                                  | admin / admin123      |
-
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph Data
-        CSV[Text CSV] -->|COPY| PG[(PostgreSQL)]
-        Images[Images] --> DI
-    end
-
-    subgraph Pipeline
-        DI(Ingestion) --> DV(Validation) --> DT(Transformation) --> MT(Training)
-    end
-
-    subgraph Services
-        MLflow[MLflow:5000]
-        API[API:8000]
-        Airflow[Airflow:8081]
-    end
-
-    PG --> DI
-    MT --> MLflow
-    MT --> Artifacts[(models/)]
-    Artifacts --> API
-    Artifacts --> Streamlit
-    API --> Airflow
-    Airflow --> MT
-    API --> Users((Users))
-    Streamlit --> Users
-```
-
-#### Composants principaux
-
-| Composant       | Description                                                                      |
-|-----------------|----------------------------------------------------------------------------------|
-| **PostgreSQL**  | Stockage des données produits (schéma `project.*`)                               |
-| **MLflow**      | Tracking des expériences et Model Registry                                       |
-| **FastAPI**     | Endpoint `/training/` pour lancer l'entraînement et `/predict/` pour l'inférence |
-| **Airflow**     | Orchestration automatique (DAG `rakuten_training_pipeline`)                      |
-| **Streamlit**   | Interface utilisateur interactive                                                |
-
----
-
-#### Structure du projet
-
-```
-├── airflow/              # DAGs et config Airflow
-├── api/                  # FastAPI (Dockerfile, main.py)
-├── config/               # config.toml, labels_map.json
-├── data/                 # Images et textes RAW (non versionné)
-├── etl/                  # manifest_and_hash.py
-├── mlflow/               # Dockerfile MLflow
-├── models/               # Modèles entraînés (.joblib)
-├── postgres/             # Scripts SQL et init.sh
-├── scripts/              # CLI (train_pipeline.py)
-├── src/                  # Code source
-│   ├── data/             # Chargement, sampling
-│   ├── features/         # Text, Image, CNN
-│   ├── models/           # ModelTrainer, predict
-│   ├── pipeline_steps/   # Stages 01-05
-│   ├── pipelines/        # text_pipeline, image_pipeline
-│   ├── utils/            # Config, logging, profiling
-│   └── visualization/    # Data visualization
-├── streamlit_app/        # App Streamlit
-├── tools/                # Scripts utilitaires
-├── .env.example          # Template des variables d'environnement
-├── docker-compose.yml    # Infrastructure as code : configuration des micro-services
-├── init.sh               # Script d'initialisation du hash des données
-├── LICENSE               # License du projet
-├── requirements.txt      # Dépendences Python du projet
-└── snapshot.json         # Hash des données
-```
----
-
-### Micro services
-
-#### PostgreSQL
-
-Base de données avec schéma `project` contenant les produits Rakuten.
-
-```sql
--- Vérification
-SELECT COUNT(*) FROM project.items;
-SELECT prdtypecode, COUNT(*) FROM project.items GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
-```
-
-#### MLflow
-
-- **Tracking** : métriques, paramètres, artifacts
-- **Registry** : versioning des modèles avec alias `production`
-- **Backend** : PostgreSQL (`mlflow` database)
-
-#### API FastAPI
-
-| Endpoint       | Méthode | Description                          |
-|----------------|---------|--------------------------------------|
-| `/health`      | GET     | Health check                         |
-| `/model/info`  | GET     | Infos sur le modèle chargé           |
-| `/training/`   | POST    | Lance l'entraînement complet         |
-| `/predict/`    | POST    | Prédiction *(non implémenté)*        |
-
-Documentation Swagger : http://localhost:8000/docs
-
-#### Airflow
-
-DAG `rakuten_training_pipeline` :
-1. Entraîne 3 modèles en parallèle (LR, XGBoost, LightGBM)
-2. Promeut automatiquement le meilleur vers MLflow (alias `production`)
 
 ---
 
@@ -236,11 +125,11 @@ Combinaison via `FeatureUnion` avec pondérations configurables dans `config/con
 - **SHAP** : contributions par bloc (texte, CNN, stats)
 - **Exports** : `results/metrics/` (JSON/CSV)
 
+---
 
+### Configuration
 
-## Configuration
-
-### `config/config.toml`
+Dans `config/config.toml` :
 
 | Section | Description |
 |---------|-------------|
@@ -252,14 +141,9 @@ Combinaison via `FeatureUnion` avec pondérations configurables dans `config/con
 | `[cv]` | Validation croisée |
 | `[sampling]` | Under/over-sampling |
 
-### Variables d'environnement
-
-- `MLFLOW_TRACKING_URI` : URI du serveur MLflow
-- `DATABASE_HOST`, `DATABASE_PORT`, etc. : connexion PostgreSQL
-
 ---
 
-## Outils
+### Outils
 
 | Commande | Description |
 |----------|-------------|
@@ -267,6 +151,117 @@ Combinaison via `FeatureUnion` avec pondérations configurables dans `config/con
 | `python tools/test_pipeline_sample.py --sample-size 1500` | Run réduit avec profiling |
 | `python tools/clear_cache.py --all` | Purge le cache |
 | `python tools/shap_block_aggregation.py` | Agrège les valeurs SHAP |
+
+---
+
+## Architecture MLOps
+
+```mermaid
+flowchart LR
+    subgraph Data
+        CSV[Text CSV] -->|COPY| PG[(PostgreSQL)]
+        Images[Images] --> DI
+    end
+
+    subgraph Pipeline
+        DI(Ingestion) --> DV(Validation) --> DT(Transformation) --> MT(Training)
+    end
+
+    subgraph Services
+        MLflow[MLflow:5000]
+        API[API:8000]
+        Airflow[Airflow:8081]
+    end
+
+    PG --> DI
+    MT --> MLflow
+    MT --> Artifacts[(models/)]
+    Artifacts --> API
+    Artifacts --> Streamlit
+    API --> Airflow
+    Airflow --> MT
+    API --> Users((Users))
+    Streamlit --> Users
+```
+
+#### Composants principaux
+
+| Composant       | Description                                                                      |
+|-----------------|----------------------------------------------------------------------------------|
+| **PostgreSQL**  | Stockage des données produits (schéma `project.*`)                               |
+| **MLflow**      | Tracking des expériences et Model Registry                                       |
+| **FastAPI**     | Endpoint `/training/` pour lancer l'entraînement et `/predict/` pour l'inférence |
+| **Airflow**     | Orchestration automatique (DAG `rakuten_training_pipeline`)                      |
+| **Streamlit**   | Interface utilisateur interactive                                                |
+
+---
+
+### Micro services
+
+#### PostgreSQL
+
+Base de données avec schéma `project` contenant les produits Rakuten.
+
+```sql
+-- Vérification
+SELECT COUNT(*) FROM project.items;
+SELECT prdtypecode, COUNT(*) FROM project.items GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
+```
+
+#### MLflow
+
+- **Tracking** : métriques, paramètres, artifacts
+- **Registry** : versioning des modèles avec alias `production`
+- **Backend** : PostgreSQL (`mlflow` database)
+
+#### API FastAPI
+
+| Endpoint       | Méthode | Description                          |
+|----------------|---------|--------------------------------------|
+| `/health`      | GET     | Health check                         |
+| `/model/info`  | GET     | Infos sur le modèle chargé           |
+| `/training/`   | POST    | Lance l'entraînement complet         |
+| `/predict/`    | POST    | Prédiction *(non implémenté)*        |
+
+Documentation Swagger : http://localhost:8000/docs
+
+#### Airflow
+
+DAG `rakuten_training_pipeline` :
+1. Entraîne 3 modèles en parallèle (LR, XGBoost, LightGBM)
+2. Promeut automatiquement le meilleur vers MLflow (alias `production`)
+
+---
+
+## Structure détaillée du projet
+
+```
+├── airflow/              # DAGs et config Airflow
+├── api/                  # FastAPI (Dockerfile, main.py)
+├── config/               # config.toml, labels_map.json
+├── data/                 # Images et textes RAW (non versionné)
+├── etl/                  # manifest_and_hash.py
+├── mlflow/               # Dockerfile MLflow
+├── models/               # Modèles entraînés (.joblib)
+├── postgres/             # Scripts SQL et init.sh
+├── scripts/              # CLI (train_pipeline.py)
+├── src/                  # Code source
+│   ├── data/             # Chargement, sampling
+│   ├── features/         # Text, Image, CNN
+│   ├── models/           # ModelTrainer, predict
+│   ├── pipeline_steps/   # Stages 01-05
+│   ├── pipelines/        # text_pipeline, image_pipeline
+│   ├── utils/            # Config, logging, profiling
+│   └── visualization/    # Data visualization
+├── streamlit_app/        # App Streamlit
+├── tools/                # Scripts utilitaires
+├── .env.example          # Template des variables d'environnement
+├── docker-compose.yml    # Infrastructure as code : configuration des micro-services
+├── init.sh               # Script d'initialisation du hash des données
+├── LICENSE               # License du projet
+├── requirements.txt      # Dépendences Python du projet
+└── snapshot.json         # Hash des données
+```
 
 ---
 
