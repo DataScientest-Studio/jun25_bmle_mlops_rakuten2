@@ -1,4 +1,4 @@
--- Vues métiers pour faciliter l'analyse rapide depuis psql ou des notebooks.
+-- Vues métiers pour faciliter l'analyse rapide depuis psql
 
 SET search_path TO project, public;
 

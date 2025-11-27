@@ -19,18 +19,6 @@ __pycache__/
 *.egg-info/
 
 ########################################
-# Jupyter
-########################################
-.ipynb_checkpoints/
-notebooks/df.csv
-
-# caches / artefacts locaux
-__pycache__/
-*.py[cod]
-*.egg-info/
-.ipynb_checkpoints/
-
-########################################
 # Données lourdes / brutes
 ########################################
 rakuten_dump.sql

@@ -128,11 +128,15 @@ flowchart LR
 │   ├── models/           # ModelTrainer, predict
 │   ├── pipeline_steps/   # Stages 01-05
 │   ├── pipelines/        # text_pipeline, image_pipeline
-│   └── utils/            # Config, logging, profiling
+│   ├── utils/            # Config, logging, profiling
+│   └── visualization/    # Data visualization
 ├── streamlit_app/        # App Streamlit
 ├── tools/                # Scripts utilitaires
-├── docker-compose.yml
-├── init.sh
+├── .env.example          # Template des variables d'environnement
+├── docker-compose.yml    # Infrastructure as code : configuration des micro-services
+├── init.sh               # Script d'initialisation du hash des données
+├── LICENSE               # License du projet
+├── requirements.txt      # Dépendences Python du projet
 └── snapshot.json         # Hash des données
 ```
 ---
