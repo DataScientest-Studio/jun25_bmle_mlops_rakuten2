@@ -40,13 +40,11 @@ uv pip install -r requirements.txt
 cp .env.example .env
 
 # Option A : Partir des CSV bruts Rakuten
-# A1. Placer les fichiers dans ./data/raw/ pour qu'ils soient importés par ./postgres/09_copy_raw.sql pendant l'initialisation de la base de données
-#    - X_train_update.csv
-#    - Y_train_CVw08PX.csv  
-#    - X_test_update.csv
+# A1. Télécharger via DVC les fichiers dans ./data/raw/
+# dvc pull ./data/raw/X_train_update.csv.dvc
+# dvc pull ./data/raw/Y_train_CVw08PX.csv.dvc
+# dvc pull ./data/raw/X_test_update.csv.dvc
 # A2. Configurer la valeur LOAD_DB_DUMP=0 dans .env
-# A3. Générer le hash et préparer les données
-# ./init.sh
 
 # Option B : Télécharger le dump SQL pré-généré via DVC puis charger le dump
 # B1. dvc pull ./postgres/dump/rakuten_dump.sql.dvc
@@ -260,7 +258,6 @@ DAG `rakuten_training_pipeline` :
 ├── init.sh               # Script d'initialisation du hash des données
 ├── LICENSE               # License du projet
 ├── requirements.txt      # Dépendences Python du projet
-└── snapshot.json         # Hash des données
 ```
 
 ---
