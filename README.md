@@ -62,6 +62,7 @@ docker compose up -d
 | MLflow         | http://localhost:5000                                  | —                     |
 | API FastAPI    | http://localhost:8000                                  | —                     |
 | Airflow        | http://localhost:8081                                  | admin / admin123      |
+| Streamlit      | http://localhost:8501                                  | —                     |
 
 ---
 
@@ -170,6 +171,7 @@ flowchart LR
         MLflow[MLflow:5000]
         API[API:8000]
         Airflow[Airflow:8081]
+        Streamlit[Streamlit:8501]
     end
 
     MT --> MLflow
@@ -190,7 +192,7 @@ flowchart LR
 | **MLflow**      | Tracking des expériences et Model Registry                                       |
 | **FastAPI**     | Endpoint `/training/` pour lancer l'entraînement et `/predict/` pour l'inférence |
 | **Airflow**     | Orchestration automatique (DAG `rakuten_training_pipeline`)                      |
-| **Streamlit**   | Interface utilisateur interactive                                                |
+| **Streamlit**   | Interface utilisateur interactive pour visualisation et démonstration             |
 
 ---
 
@@ -216,7 +218,8 @@ SELECT prdtypecode, COUNT(*) FROM project.items GROUP BY 1 ORDER BY 2 DESC LIMIT
 
 | Endpoint       | Méthode | Description                          |
 |----------------|---------|--------------------------------------|
-| `/health`      | GET     | Health check                         |
+| `/`            | GET     | Page d'accueil avec liens            |
+| `/health`      | GET     | Health check (DB + modèle)           |
 | `/model/info`  | GET     | Infos sur le modèle chargé           |
 | `/training/`   | POST    | Lance l'entraînement complet         |
 | `/predict/`    | POST    | Prédiction *(non implémenté)*        |
@@ -228,6 +231,17 @@ Documentation Swagger : http://localhost:8000/docs
 DAG `rakuten_training_pipeline` :
 1. Entraîne 3 modèles en parallèle (LR, XGBoost, LightGBM)
 2. Promeut automatiquement le meilleur vers MLflow (alias `production`)
+
+**Configuration** :
+- Schedule : toutes les 15 minutes (`*/15 * * * *`)
+- Métrique de sélection : `cv_f1_weighted_mean`
+- Les modèles sont entraînés via l'API FastAPI (`/training/`)
+
+#### Streamlit
+
+Application web interactive pour présenter le projet et fournir une interface d'utilisation du modèle pour inférence.
+
+**Accès** : http://localhost:8501
 
 ---
 
@@ -252,6 +266,11 @@ DAG `rakuten_training_pipeline` :
 │   ├── utils/            # Config, logging, profiling
 │   └── visualization/    # Data visualization
 ├── streamlit_app/        # App Streamlit
+│   ├── app.py            # Application principale
+│   ├── config.py         # Configuration (titre, équipe)
+│   ├── tabs/             # Onglets (intro, modelisation, conclusion)
+│   ├── assets/           # Images et ressources statiques
+│   └── Dockerfile        # Image Docker pour Streamlit
 ├── tools/                # Scripts utilitaires
 ├── .env.example          # Template des variables d'environnement
 ├── docker-compose.yml    # Infrastructure as code : configuration des micro-services
