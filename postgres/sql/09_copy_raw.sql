@@ -30,7 +30,7 @@ CREATE UNLOGGED TABLE project._raw_x_test (
 );
 COMMENT ON TABLE project._raw_x_test IS 'Copie brute de X_test_update.csv.';
 
--- Import physique des fichiers déposés dans ./import (montés dans /import).
+-- Import physique des fichiers déposés dans ./data/raw (montés dans /import).
 COPY project._raw_x_train
 FROM '/import/X_train_update.csv'
 WITH (FORMAT csv, HEADER true, ENCODING 'UTF8');

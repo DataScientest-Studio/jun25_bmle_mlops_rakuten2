@@ -1,7 +1,5 @@
 # Rakuten Multimodal MLOps Platform
 
-> Plateforme MLOps complète pour la classification produits du challenge Rakuten, combinant pipelines texte/image, orchestration automatisée et serving via API et Streamlit.
-
 ## Présentation & TL;DR
 
 - **Objectif** : entraîner, évaluer et servir un modèle multimodal (texte + image) pour classer les produits Rakuten (codes `prdtypecode`).
@@ -25,7 +23,6 @@
 ### 1. Prérequis
 
 - Docker & Docker Compose
-- Python 3.10+
 - (Optionnel) GPU pour accélérer les embeddings CNN
 
 ### 2. Installation
@@ -35,20 +32,26 @@
 git clone <repo-url>
 cd jun25_bmle_mlops_rakuten2
 
+# Créer un environnement uv et l'activer
+uv venv --python 3.10
+source .venv/bin/activate
+uv pip install -r requirements.txt
+
 # Initialiser les variables d'environnement à partir du template
 cp .env.example .env
 
 # Option A : Partir des CSV bruts Rakuten
-# 1. Placer les fichiers dans ./import/ pour qu'ils soient importés par ./postgres/09_copy_raw.sql pendant l'initialisation de la base de données
+# 1. Placer les fichiers dans ./data/raw/ pour qu'ils soient importés par ./postgres/09_copy_raw.sql pendant l'initialisation de la base de données
 #    - X_train_update.csv
 #    - Y_train_CVw08PX.csv  
 #    - X_test_update.csv
+# 2. Configurer la valeur LOAD_DB_DUMP=0 dans .env
+# 3. Générer le hash et préparer les données
+# ./init.sh
 
 # Option B : Télécharger le dump SQL pré-généré via DVC puis charger le dump
-# dvc pull rakuten_dump.sql.dvc
-
-# 2. Générer le hash et préparer les données
-./init.sh
+# 1. dvc pull ./postgres/dump/rakuten_dump.sql.dvc
+# 2. Configurer la valeur LOAD_DB_DUMP=1 dans .env
 
 # Lancer les services
 docker compose up -d
@@ -56,12 +59,12 @@ docker compose up -d
 
 ### 3. Accès aux services
 
-| Service        | URL                                                    | Credentials       |
-|----------------|--------------------------------------------------------|-------------------|
-| PostgreSQL     | `postgres://mlops:mlops@localhost:5433/rakuten`        | mlops / mlops     |
-| MLflow         | http://localhost:5000                                  | —                 |
-| API FastAPI    | http://localhost:8000                                  | —                 |
-| Airflow        | http://localhost:8081                                  | admin / admin123  |
+| Service        | URL                                                    | Credentials (default) |
+|----------------|--------------------------------------------------------|-----------------------|
+| PostgreSQL     | `postgres://mlops:mlops@localhost:5433/rakuten`        | mlops / mlops         |
+| MLflow         | http://localhost:5000                                  | —                     |
+| API FastAPI    | http://localhost:8000                                  | —                     |
+| Airflow        | http://localhost:8081                                  | admin / admin123      |
 
 ---
 
@@ -113,9 +116,8 @@ flowchart LR
 ├── airflow/              # DAGs et config Airflow
 ├── api/                  # FastAPI (Dockerfile, main.py)
 ├── config/               # config.toml, labels_map.json
-├── data/                 # Images (non versionné)
+├── data/                 # Images et textes RAW (non versionné)
 ├── etl/                  # manifest_and_hash.py
-├── import/               # CSV Rakuten
 ├── mlflow/               # Dockerfile MLflow
 ├── models/               # Modèles entraînés (.joblib)
 ├── postgres/             # Scripts SQL et init.sh
