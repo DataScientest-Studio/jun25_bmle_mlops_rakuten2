@@ -158,13 +158,14 @@ Dans `config/config.toml` :
 
 ```mermaid
 flowchart LR
-    subgraph Data
-        CSV[Text CSV] -->|COPY| PG[(PostgreSQL)]
+    subgraph Data Pipeline
+        CSV[Text CSV files] --> DI
+        DI(Ingestion) --> PG[(PostgreSQL)]
         Images[Images] --> DI
     end
 
-    subgraph Pipeline
-        DI(Ingestion) --> DV(Validation) --> DT(Transformation) --> MT(Training)
+    subgraph ML Pipeline
+        PG --> DV(Validation) --> DT(Transformation) --> MT(Training)
     end
 
     subgraph Services
@@ -173,7 +174,6 @@ flowchart LR
         Airflow[Airflow:8081]
     end
 
-    PG --> DI
     MT --> MLflow
     MT --> Artifacts[(models/)]
     Artifacts --> API
