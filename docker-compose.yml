@@ -114,6 +114,24 @@ services:
     networks:
       - mlops_network
 
+  streamlit_app:
+    build:
+      context: ./streamlit_app
+      dockerfile: Dockerfile
+    container_name: rakuten_streamlit_app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    networks:
+      - mlops_network
+    command:
+      [
+        "streamlit", "run", "app.py",
+        "--server.port", "8501"
+      ]
+
 volumes:
   postgres_data:
     driver: local
