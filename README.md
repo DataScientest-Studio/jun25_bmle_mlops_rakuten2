@@ -274,7 +274,6 @@ Application web interactive pour présenter le projet et fournir une interface d
 ├── tools/                # Scripts utilitaires
 ├── .env.example          # Template des variables d'environnement
 ├── docker-compose.yml    # Infrastructure as code : configuration des micro-services
-├── init.sh               # Script d'initialisation du hash des données
 ├── LICENSE               # License du projet
 ├── requirements.txt      # Dépendences Python du projet
 ```
@@ -284,6 +283,7 @@ Application web interactive pour présenter le projet et fournir une interface d
 ## Ressources
 
 - **Challenge Rakuten** : https://challengedata.ens.fr/participants/challenges/42/
+- **8 MLOps Best Practices for Scalable, Production-Ready ML Systems** : https://www.azilen.com/blog/mlops-best-practices/
 
 ---
 
