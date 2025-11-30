@@ -12,15 +12,15 @@ y_train_csv = "data/raw/Y_train_CVw08PX.csv"
 x_test_csv  = "data/raw/X_test_update.csv"
 
 # Images (renommé pour clarté)
-#image_train_dir = "data/images/images/image_train"
-#image_test_dir  = "data/images/images/image_test"
+#image_train_dir = "data/images/image_train"
+#image_test_dir  = "data/images/image_test"
 # ========================================
 # IMAGES (Configuration pour pipelines)
 # ========================================
 [images]
 # Chemins des images
-train_dir = "data/images/images/image_train"
-test_dir  = "data/images/images/image_test"
+train_dir = "data/images/image_train"
+test_dir  = "data/images/image_test"
 
 # ========================================
 # SORTIES

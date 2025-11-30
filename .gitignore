@@ -21,13 +21,7 @@ __pycache__/
 ########################################
 # Données lourdes / brutes
 ########################################
-rakuten_dump.sql
-data/raw/**
-!data/raw/
-!data/raw/*.dvc
-data/images/
-data/X_train_update_with_imgstats.csv
-data/image_object_dims.csv
+postgres/dump/rakuten_dump.sql
 
 ########################################
 # OS / fichiers système

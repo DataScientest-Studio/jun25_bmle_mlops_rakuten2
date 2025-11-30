@@ -1,0 +1,10 @@
+########################################
+# Données lourdes / brutes
+########################################
+/raw/**
+!/raw/*.dvc
+/images/
+!/images/*.dvc
+
+X_train_update_with_imgstats.csv
+image_object_dims.csv
