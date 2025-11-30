@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Initialise la base Rakuten : schéma, ingestion et enregistrement du hash.
+# Initialise la base Rakuten : schéma et ingestion des données
 # Script conçu pour être exécuté directement dans le conteneur postgres.
 
 set -euo pipefail
@@ -15,16 +15,6 @@ SQL_DIR="$ROOT_DIR/sql"
 # ==============================================================================
 
 initialize_db() {
-  # Charger le hash des données depuis snapshot.json
-  DATA_HASH=$(grep -o '"data_hash": *"[^"]*"' "$ROOT_DIR/snapshot.json" | sed -E 's/.*"data_hash": *"([^"]*)".*/\1/')
-
-  if [[ -z "$DATA_HASH" ]]; then
-    echo "Impossible de récupérer le hash des données."
-    exit 1
-  fi
-
-  echo "Hash combiné : $DATA_HASH"
-
   SQL_FILES=(
     00_schema.sql
     01_tables.sql
@@ -39,9 +29,6 @@ initialize_db() {
     echo ">>> Exécution de $sql_file"
     psql -U mlops -d rakuten -v ON_ERROR_STOP=1 -f "$SQL_DIR/$sql_file"
   done
-
-  echo ">>> Enregistrement du snapshot dans project.datasets"
-  psql -U mlops -d rakuten -v ON_ERROR_STOP=1 -v data_hash="$DATA_HASH" -f "$SQL_DIR/12_register_snapshot.sql"
 
   echo ">>> Exécution des contrôles finaux"
   psql -U mlops -d rakuten -v ON_ERROR_STOP=1 -f "$SQL_DIR/13_checks.sql"
@@ -67,7 +54,7 @@ create_additional_databases() {
 # ==============================================================================
 
 main() {
-  echo "Postgres est prêt. Calcul du hash des CSV..."
+  echo "Postgres est prêt."
 
   if [[ "${LOAD_DB_DUMP:-}" == "1" ]]; then
     load_db_dump

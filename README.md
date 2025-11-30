@@ -3,7 +3,7 @@
 ## Présentation & TL;DR
 
 - **Objectif** : entraîner, évaluer et servir un modèle multimodal (texte + image) pour classer les produits Rakuten (codes `prdtypecode`).
-- **Dataset** : fichiers CSV officiels (`X_train_update.csv`, `Y_train_CVw08PX.csv`, `X_test_update.csv`) et images associées, versionnés via `snapshot.json`.
+- **Dataset** : fichiers CSV officiels (`X_train_update.csv`, `Y_train_CVw08PX.csv`, `X_test_update.csv`) et images associées, versionnés via DVC.
 - **Technos clés** : PostgreSQL 16, pipelines scikit-learn/ResNet, PyTorch, XGBoost/LGBM, Streamlit, SHAP, Docker, MLflow, Airflow.
 
 ## Table des matières
