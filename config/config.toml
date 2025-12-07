@@ -11,9 +11,6 @@ x_train_csv = "data/raw/X_train_update.csv"
 y_train_csv = "data/raw/Y_train_CVw08PX.csv"
 x_test_csv  = "data/raw/X_test_update.csv"
 
-# Images (renommé pour clarté)
-#image_train_dir = "data/images/image_train"
-#image_test_dir  = "data/images/image_test"
 # ========================================
 # IMAGES (Configuration pour pipelines)
 # ========================================
@@ -174,7 +171,7 @@ random_state = 42
 enabled = true  # true pour utiliser CNN, false pour désactiver
 
 # Architecture
-arch = "resnet50"  # Options: "resnet18", "resnet50", "resnet101"
+arch = "resnet18"  # Options: "resnet18", "resnet50", "resnet101"
 
 # Chargement
 batch_size = 16  # 16-32 recommandé, réduire si OOM

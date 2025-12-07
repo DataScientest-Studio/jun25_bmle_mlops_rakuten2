@@ -39,6 +39,10 @@ uv pip install -r requirements.txt
 # Initialiser les variables d'environnement à partir du template et les modifier selon besoin
 cp .env.example .env
 
+# Récupération des images
+dvc pull ./data/images.dvc
+
+# Récupération des textes
 # Option A : Partir des CSV bruts Rakuten
 # A1. Télécharger via DVC les fichiers dans ./data/raw/
 # dvc pull ./data/raw/X_train_update.csv.dvc

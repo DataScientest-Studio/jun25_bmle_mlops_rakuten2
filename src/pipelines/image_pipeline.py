@@ -159,8 +159,8 @@ def create_image_pipeline_from_cfg(
     Le TOML attendu ressemble à :
         [images]
         size = [128, 128]
-        train_dir = "data/images/images/image_train"
-        test_dir  = "data/images/images/image_test"
+        train_dir = "data/images/image_train"
+        test_dir  = "data/images/image_test"
         [images.dim_reduction]
         enabled = true
         method = "pca"            # ou "truncated_svd"
