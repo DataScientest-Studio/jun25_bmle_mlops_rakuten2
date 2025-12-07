@@ -8,6 +8,9 @@ import config
 from tabs import (
     intro,
     modelisation,
+    architecture,
+    demonstration,
+    ameliorations,
     conclusion,
 )
 
@@ -30,6 +33,9 @@ TABS = OrderedDict(
     [
         (intro.sidebar_name, intro),
         (modelisation.sidebar_name, modelisation),
+        (architecture.sidebar_name, architecture),
+        (demonstration.sidebar_name, demonstration),
+        (ameliorations.sidebar_name, ameliorations),
         (conclusion.sidebar_name, conclusion),
     ]
 )
