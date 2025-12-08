@@ -62,6 +62,9 @@ train_lr = SimpleHttpOperator(
     headers={"Content-Type": "application/json"},
     response_check=lambda response: "success" in response.text.lower(),
     log_response=True,
+    # Timeout de 8 heures pour permettre l'entraînement complet (peut prendre jusqu'à 6h)
+    extra_options={"timeout": 28800},  # 8 heures en secondes
+    execution_timeout=timedelta(hours=8, minutes=30),  # Légèrement supérieur au timeout HTTP
     dag=dag,
 )
 
@@ -82,6 +85,9 @@ train_xgb = SimpleHttpOperator(
     headers={"Content-Type": "application/json"},
     response_check=lambda response: "success" in response.text.lower(),
     log_response=True,
+    # Timeout de 8 heures pour permettre l'entraînement complet (peut prendre jusqu'à 6h)
+    extra_options={"timeout": 28800},  # 8 heures en secondes
+    execution_timeout=timedelta(hours=8, minutes=30),  # Légèrement supérieur au timeout HTTP
     dag=dag,
 )
 
@@ -102,6 +108,9 @@ train_lgbm = SimpleHttpOperator(
     headers={"Content-Type": "application/json"},
     response_check=lambda response: "success" in response.text.lower(),
     log_response=True,
+    # Timeout de 8 heures pour permettre l'entraînement complet (peut prendre jusqu'à 6h)
+    extra_options={"timeout": 28800},  # 8 heures en secondes
+    execution_timeout=timedelta(hours=8, minutes=30),  # Légèrement supérieur au timeout HTTP
     dag=dag,
 )
 

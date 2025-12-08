@@ -53,4 +53,4 @@ ENV CUDA_VISIBLE_DEVICES=""
 ENV NLTK_DATA=/usr/local/share/nltk_data
 ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "28800", "--timeout-graceful-shutdown", "30"]

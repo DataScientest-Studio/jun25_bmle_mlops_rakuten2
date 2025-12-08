@@ -498,71 +498,23 @@ async def train_model(request: TrainingRequest):
             # Utiliser model.joblib qui est créé par stage04 pour le Registry
             model_path = "models/model.joblib"
 
-            # Enregistrer le modèle dans le MLflow Model Registry
-            try:
-                if Path(model_path).exists():
-                    saved_model = joblib.load(model_path)
-
-                    # Log du modèle comme artifact (modèle nu)
-                    mlflow.sklearn.log_model(
-                        saved_model,
-                        artifact_path="model",
-                    )
-                    logger.info("Modèle loggé comme artifact dans MLflow")
-
-                    client = MlflowClient()
-
-                    # Créer le registered model s'il n'existe pas
-                    try:
-                        client.create_registered_model(
-                            REGISTERED_MODEL_NAME,
-                            description="Modèle de classification Rakuten",
-                        )
-                        logger.info(
-                            "Registered model '%s' créé", REGISTERED_MODEL_NAME
-                        )
-                    except Exception as e:
-                        if "ALREADY_EXISTS" in str(e):
-                            logger.info(
-                                "Registered model '%s' existe déjà",
-                                REGISTERED_MODEL_NAME,
-                            )
-                        else:
-                            raise
-
-                    # Créer une nouvelle version pour CE run
-                    model_uri = f"runs:/{run.info.run_id}/model"
-                    mv = client.create_model_version(
-                        name=REGISTERED_MODEL_NAME,
-                        source=model_uri,
-                        run_id=run.info.run_id,
-                    )
-                    logger.info(
-                        "Modèle enregistré dans le Registry: %s version %s",
-                        REGISTERED_MODEL_NAME,
-                        mv.version,
-                    )
-
-                    # Taguer la version avec l'algo
-                    client.set_model_version_tag(
-                        name=REGISTERED_MODEL_NAME,
-                        version=mv.version,
-                        key="algo",
-                        value=safe_name,
-                    )
-                else:
-                    logger.warning(
-                        "Fichier modèle introuvable pour le Registry: %s",
-                        model_path,
-                    )
-            except Exception as e:
-                logger.warning(
-                    "Impossible d'enregistrer le modèle dans le Registry MLflow: %s",
-                    e,
+            # Log du modèle comme artifact (modèle nu) - doit être fait pendant le run
+            if Path(model_path).exists():
+                saved_model = joblib.load(model_path)
+                mlflow.sklearn.log_model(
+                    saved_model,
+                    artifact_path="model",
                 )
-                import traceback
+                logger.info("Modèle loggé comme artifact dans MLflow")
+            else:
+                logger.warning(
+                    "Fichier modèle introuvable pour le Registry: %s",
+                    model_path,
+                )
 
-                traceback.print_exc()
+            # Capturer les variables nécessaires avant de sortir du contexte
+            run_id = run.info.run_id
+            experiment_id = run.info.experiment_id
 
             # Logger aussi les fichiers .joblib comme artifacts simples
             try:
@@ -594,15 +546,71 @@ async def train_model(request: TrainingRequest):
                     and k not in ["predictions", "dataset_name"]
                 }
 
-            return TrainingResponse(
-                status="success",
-                message=f"Modèle {model_name.upper()} entraîné avec succès",
-                model_path=full_model_path,
-                metrics=filtered_metrics,
-                mlflow_run_id=run.info.run_id,
-                mlflow_experiment_id=run.info.experiment_id,
-                training_time=training_time,
-            )
+        # Enregistrer le modèle dans le MLflow Model Registry
+        # IMPORTANT: Fait APRÈS la fin du run pour s'assurer que l'artifact est persisté
+        if Path(model_path).exists():
+            try:
+                client = MlflowClient()
+
+                # Créer le registered model s'il n'existe pas
+                try:
+                    client.create_registered_model(
+                        REGISTERED_MODEL_NAME,
+                        description="Modèle de classification Rakuten",
+                    )
+                    logger.info(
+                        "Registered model '%s' créé", REGISTERED_MODEL_NAME
+                    )
+                except Exception as e:
+                    if "ALREADY_EXISTS" in str(e):
+                        logger.info(
+                            "Registered model '%s' existe déjà",
+                            REGISTERED_MODEL_NAME,
+                        )
+                    else:
+                        raise
+
+                # Créer une nouvelle version pour CE run
+                # Le run est maintenant terminé, l'artifact devrait être persisté
+                model_uri = f"runs:/{run_id}/model"
+                mv = client.create_model_version(
+                    name=REGISTERED_MODEL_NAME,
+                    source=model_uri,
+                    run_id=run_id,
+                )
+                logger.info(
+                    "Modèle enregistré dans le Registry: %s version %s",
+                    REGISTERED_MODEL_NAME,
+                    mv.version,
+                )
+
+                # Taguer la version avec l'algo
+                client.set_model_version_tag(
+                    name=REGISTERED_MODEL_NAME,
+                    version=mv.version,
+                    key="algo",
+                    value=safe_name,
+                )
+            except Exception as e:
+                logger.error(
+                    "Impossible d'enregistrer le modèle dans le Registry MLflow: %s",
+                    e,
+                )
+                import traceback
+
+                traceback.print_exc()
+                # On continue quand même - le modèle est entraîné, juste pas enregistré
+                # Mais on log en ERROR pour que ce soit visible
+
+        return TrainingResponse(
+            status="success",
+            message=f"Modèle {model_name.upper()} entraîné avec succès",
+            model_path=full_model_path,
+            metrics=filtered_metrics,
+            mlflow_run_id=run_id,
+            mlflow_experiment_id=experiment_id,
+            training_time=training_time,
+        )
 
     except Exception as e:
         logger.error(f"Erreur dans l'entraînement: {e}")
