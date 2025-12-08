@@ -15,6 +15,15 @@ TEAM_MEMBERS = [
         linkedin_url="https://www.linkedin.com/in/ecramarokoto/",
         github_url="https://github.com/cramarokoto",
     ),
+    Member(
+        name="Julie COLLEONI",
+    ),
+    Member(
+        name="Claude JEANNE",
+    ),
+    Member(
+        name="Tanguy GAURIER",
+    ),
 ]
 
 PROMOTION = "Promotion Data scientist - Juillet 2025"

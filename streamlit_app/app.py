@@ -14,8 +14,8 @@ from tabs import (
     conclusion,
 )
 
-
 st.set_page_config(
+    layout="wide",
     page_title=config.TITLE,
     page_icon="https://datascientest.com/wp-content/uploads/2020/03/cropped-favicon-datascientest-1-32x32.png",
 )
