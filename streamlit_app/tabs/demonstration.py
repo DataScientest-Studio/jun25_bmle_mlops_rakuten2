@@ -44,7 +44,8 @@ def get_image_path(imageid):
 
 def call_predict_api(designation, description=None, productid=None, imageid=None, api_url=None):
     """Appelle l'API FastAPI pour faire une prédiction."""
-    api_url = API_BASE_URL
+    # Lire la variable d'environnement dynamiquement à chaque appel
+    api_url = api_url or os.getenv("API_BASE_URL", "http://localhost:8000")
     
     predict_endpoint = f"{api_url}/predict/"
     
@@ -178,8 +179,7 @@ def run():
                     designation=selected_row["designation"],
                     description=selected_row.get("description"),
                     productid=selected_row.get("productid"),
-                    imageid=selected_row.get("imageid"),
-                    api_url=API_BASE_URL
+                    imageid=selected_row.get("imageid")
                 )
             
             if error:
