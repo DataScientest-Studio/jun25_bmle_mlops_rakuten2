@@ -193,7 +193,8 @@ def run():
                 with col1:
                     prediction_code = result.get("prediction")
                     prediction_label = get_category_label(prediction_code)
-                    st.metric("🎯 Catégorie prédite", prediction_label)
+                    st.markdown("**🎯 Catégorie prédite**")
+                    st.markdown(f"<div style='font-size: 1.2em; padding: 0.5em 0; word-wrap: break-word;'>{prediction_label}</div>", unsafe_allow_html=True)
                     st.caption(f"Code: {prediction_code}")
                 
                 with col2:
