@@ -30,6 +30,7 @@ from datetime import datetime
 import re  # pour nettoyer le nom de modèle
 
 import psycopg2
+import pandas as pd
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -352,20 +353,40 @@ async def get_model_info():
 async def predict(request: PredictionRequest):
     """
     Endpoint de prédiction.
-
-    La logique de feature engineering et de prédiction n'est pas
-    implémentée dans cette version. Elle sera ajoutée dans une étape
-    ultérieure par un autre membre de l'équipe.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=(
-            "Endpoint de prédiction non implémenté pour le moment. "
-            "La logique de transformation des features et de prédiction "
-            "sera ajoutée ultérieurement."
-        ),
+    global predictor
+    
+    if predictor is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Aucun modèle chargé. Entraînez d'abord un modèle ou attendez le chargement du modèle de production.",
+        )
+    
+    # Créer un DataFrame avec les colonnes attendues par le pipeline
+    df = pd.DataFrame({
+        "designation": [request.designation],
+        "description": [request.description] if request.description else [None],
+        "productid": [request.productid] if request.productid is not None else [None],
+        "imageid": [request.imageid] if request.imageid is not None else [None],
+    })
+    
+    # Utiliser predict_with_confidence pour obtenir prédiction, confiance et top classes
+    results = predictor.predict_with_confidence(df)
+    
+    # Extraire le premier résultat (on ne prédit qu'un seul produit)
+    if not results:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Aucun résultat de prédiction retourné.",
+        )
+    
+    result = results[0]
+    
+    return PredictionResponse(
+        prediction=result["prediction"],
+        confidence=result.get("confidence"),
+        top_classes=result.get("top_classes"),
     )
-
 
 @app.post("/training/", response_model=TrainingResponse, tags=["Training"])
 async def train_model(request: TrainingRequest):
