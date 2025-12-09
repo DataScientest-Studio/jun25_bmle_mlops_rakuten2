@@ -30,6 +30,8 @@ services:
     build:
       context: ./mlflow
       dockerfile: Dockerfile
+      args:
+        - APPUSER_UID=${APPUSER_UID:-1000}
     container_name: rakuten_mlflow
     restart: unless-stopped
     ports:
@@ -58,6 +60,8 @@ services:
     build:
       context: .
       dockerfile: ./api/Dockerfile
+      args:
+        - APPUSER_UID=${APPUSER_UID:-1000}
     container_name: rakuten_api
     restart: unless-stopped
     ports:

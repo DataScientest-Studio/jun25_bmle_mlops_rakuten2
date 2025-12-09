@@ -7,8 +7,9 @@ RUN apt-get update && apt-get install -y \
     curl \
  && rm -rf /var/lib/apt/lists/*
 
-# Utilisateur non-root
-RUN useradd -m -u 1000 appuser
+# Utilisateur non-root (UID via build arg, défaut 1000)
+ARG APPUSER_UID=1000
+RUN useradd -m -u ${APPUSER_UID} appuser
 
 WORKDIR /app
 

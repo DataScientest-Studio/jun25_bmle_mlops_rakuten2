@@ -182,7 +182,7 @@ dtype = "float32"
 num_workers = 0  
 
 # Fine-tuning (optionnel)
-finetune_epochs = 5  # 0 = pas de FT, 3-5 pour FT léger
+finetune_epochs = 0  # 0 = pas de FT, 3-5 pour FT léger
 finetune_lr = 0.0003
 finetune_weight_decay = 0.01
 finetune_max_n = 8000

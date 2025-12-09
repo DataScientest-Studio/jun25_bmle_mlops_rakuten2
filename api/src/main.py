@@ -14,7 +14,14 @@ import os
 from pathlib import Path
 
 # Ajouter le répertoire racine au PYTHONPATH
-root_dir = Path(__file__).parent.parent
+# In Docker: main.py is at /app/main.py, so parent is /app/
+# Locally: main.py is at api/src/main.py, so parent.parent is api/
+if Path(__file__).parent.name == "src":
+    # Running locally: api/src/main.py -> root_dir = api/
+    root_dir = Path(__file__).parent.parent
+else:
+    # Running in Docker: /app/main.py -> root_dir = /app/
+    root_dir = Path(__file__).parent
 sys.path.insert(0, str(root_dir))
 
 import logging
