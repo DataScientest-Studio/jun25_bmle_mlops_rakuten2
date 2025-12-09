@@ -11,3 +11,10 @@ def run():
 
     st.title(title)
     
+    st.markdown("""
+    - Améliorer le versionning des containers Docker via ajout d'un tag au build
+    - Améliorer le monitoring des containers Docker via l'utilisation de Prometheus et Grafana
+    - Améliorer l'API d'inférence en permettant l'utilisation d'images hors du dataset
+    - Ajouter des tests unitaires pour les différentes étapes du pipeline
+    - Ajouter de la CI/CD pour les différentes étapes du pipeline
+    """)

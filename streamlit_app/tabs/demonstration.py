@@ -25,6 +25,18 @@ def load_product_data():
         return None
 
 
+@st.cache_data
+def load_y_data():
+    """Charge les données des catégories depuis selected_y.csv."""
+    try:
+        y_path = config.get_data_path("selected_y_train.csv")
+        df_y = pd.read_csv(y_path)
+        return df_y
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des catégories: {e}")
+        return None
+
+
 def get_image_path(imageid):
     """Retourne le chemin de l'image si elle existe."""
     if pd.isna(imageid):
@@ -119,9 +131,14 @@ def run():
     
     # Charger les données
     df = load_product_data()
+    df_y = load_y_data()
     
     if df is None or df.empty:
         st.error("Aucune donnée disponible.")
+        return
+    
+    if df_y is None or df_y.empty:
+        st.error("Aucune donnée de catégories disponible.")
         return
     
     # Créer un dropdown pour sélectionner un produit
@@ -153,6 +170,17 @@ def run():
             st.markdown(f"**Désignation:** {selected_row['designation']}")
             st.markdown(f"**Product ID:** {selected_row.get('productid', 'N/A')}")
             st.markdown(f"**Image ID:** {selected_row.get('imageid', 'N/A')}")
+            
+            # Récupérer la catégorie originale depuis selected_y.csv
+            original_category = "N/A"
+            if selected_index < len(df_y):
+                y_row = df_y.iloc[selected_index]
+                prdtypecode = y_row['prdtypecode']
+                
+                if prdtypecode is not None and pd.notna(prdtypecode):
+                    original_category = get_category_label(prdtypecode)
+            
+            st.markdown(f"**Catégorie:** {original_category}")
             if pd.notna(selected_row.get("description")) and str(selected_row.get("description")).strip():
                 with st.expander("📝 Description"):
                     st.text(selected_row["description"])
