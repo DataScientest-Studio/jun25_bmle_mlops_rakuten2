@@ -13,7 +13,9 @@ def run():
     
     st.markdown("""
     - Améliorer le versionning des containers Docker via ajout d'un tag au build
-    - Améliorer l'API d'inférence en permettant l'utilisation d'images hors du dataset
+    - Drift monitoring des modèles via Evidently et adaptation du pipeline de training en fonction du drift
     - Ajouter des tests unitaires pour les différentes étapes du pipeline
-    - Ajouter de la CI/CD pour les différentes étapes du pipeline
+    - Ajouter de la CI/CD pour les différentes étapes du développement
+    - Déploiement via Kubernetes avec une meilleure gestion des ressources/scaling
+    - MAJ automatique des données via scraping des nouvelles données sur le site Rakuten
     """)
