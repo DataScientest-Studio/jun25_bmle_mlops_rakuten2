@@ -11,7 +11,7 @@ def run():
 
     st.title(title)
     
-    tab1, tab2, tab3 = st.tabs(["Extract, transform and load", "Training", "Inference"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Extract, transform and load", "Training", "Inference", "Monitoring"])
 
     with tab1:
         st.image(config.get_asset_path("ETL.drawio.svg"))
@@ -21,3 +21,6 @@ def run():
 
     with tab3:
         st.image(config.get_asset_path("inference.drawio.svg"))
+    
+    with tab4:
+        st.image(config.get_asset_path("monitoring.drawio.svg"))
