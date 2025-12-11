@@ -11,13 +11,16 @@ x_train_csv = "data/raw/X_train_update.csv"
 y_train_csv = "data/raw/Y_train_CVw08PX.csv"
 x_test_csv  = "data/raw/X_test_update.csv"
 
+# Images (renommé pour clarté)
+#image_train_dir = "data/images/images/image_train"
+#image_test_dir  = "data/images/images/image_test"
 # ========================================
 # IMAGES (Configuration pour pipelines)
 # ========================================
 [images]
 # Chemins des images
-train_dir = "data/images/image_train"
-test_dir  = "data/images/image_test"
+train_dir = "data/images/images/image_train"
+test_dir  = "data/images/images/image_test"
 
 # ========================================
 # SORTIES
@@ -80,7 +83,7 @@ shap_decomposed_samples = 1000  # Moins pour eviter OOM
 # FEATURES TEXTE
 # ========================================
 [features.text]
-max_features = 30000
+max_features = 10000
 ngram_min = 1
 ngram_max = 2
 min_df = 5
@@ -105,7 +108,7 @@ use_language_detection = false  # Coûteux
 # --- Lexiques (chi2) ---
 [features.text.lexicon]
 enabled = true
-top_k = 60
+top_k = 30
 min_df = 3
 max_df = 0.98
 
@@ -168,10 +171,10 @@ random_state = 42
 # --- CNN ResNet/ViT ---
 [features.image.cnn]
 # IMPORTANT : Activer CNN ici
-enabled = true  # true pour utiliser CNN, false pour désactiver
+enabled = false  # true pour utiliser CNN, false pour désactiver
 
 # Architecture
-arch = "resnet18"  # Options: "resnet18", "resnet50", "resnet101"
+arch = "resnet50"  # Options: "resnet18", "resnet50", "resnet101"
 
 # Chargement
 batch_size = 16  # 16-32 recommandé, réduire si OOM
@@ -182,7 +185,7 @@ dtype = "float32"
 num_workers = 0  
 
 # Fine-tuning (optionnel)
-finetune_epochs = 0  # 0 = pas de FT, 3-5 pour FT léger
+finetune_epochs = 5  # 0 = pas de FT, 3-5 pour FT léger
 finetune_lr = 0.0003
 finetune_weight_decay = 0.01
 finetune_max_n = 8000
@@ -245,7 +248,7 @@ n_jobs = 4
 # RÈGLE : Si features.image.cnn.enabled = true → image_cnn > 0
 text = 1.0
 image_pixels = 0.0     # 0 si CNN activé, 1.0 si pixels seuls
-image_cnn = 0.8        # 1.0 si CNN activé, 0 sinon
+image_cnn = 0        # 1.0 si CNN activé, 0 sinon
 image_cnn_vit = 0.0    # 1.0 si ViT activé
 image_stats = 0.0      # 0.5-1.0 si stats activées
 
@@ -292,9 +295,9 @@ verbose = 1
 
 # --- XGBoost ---
 [model.xgb]
-n_estimators = 20
-learning_rate = 0.5
-max_depth = 3
+n_estimators = 2000
+learning_rate = 0.05
+max_depth = 8
 subsample = 0.8
 colsample_bytree = 0.8
 reg_alpha = 0.0
@@ -305,9 +308,9 @@ early_stopping_rounds = 50
 
 # --- LightGBM ---
 [model.lgbm]
-n_estimators = 10
-learning_rate = 0.5
-num_leaves = 31
+n_estimators = 1200
+learning_rate = 0.05
+num_leaves = 255
 max_depth = -1
 feature_fraction = 0.8
 bagging_fraction = 0.8
@@ -317,7 +320,7 @@ reg_alpha = 0.0
 reg_lambda = 1.0
 min_split_gain = 0.0
 min_sum_hessian_in_leaf = 0.001
-max_bin = 255
+max_bin = 511
 force_row_wise = true
 verbosity = -1
 early_stopping_rounds = 50
