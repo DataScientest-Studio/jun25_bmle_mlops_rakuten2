@@ -1,0 +1,7 @@
+xgb:
+  n_estimators: 20        # Seulement 20 arbres au lieu de 100
+  max_depth: 3            # Arbres peu profonds
+  learning_rate: 0.3      # Apprentissage plus rapide
+  n_jobs: -1              # Tous les CPUs
+  tree_method: 'hist'     # Méthode histogram (plus rapide)
+  verbosity: 1

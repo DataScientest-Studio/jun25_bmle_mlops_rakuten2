@@ -40,7 +40,14 @@ except ImportError:
         return func
 
 # Hugging Face
-from transformers import AutoImageProcessor, AutoModel
+try:
+    from transformers import AutoImageProcessor, AutoModel
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    AutoImageProcessor = None
+    AutoModel = None
+    print("⚠️ transformers non disponible - features CNN désactivées")
 # from transformers import ViTModel, ViTImageProcessor, ViTConfig
 try:
     from transformers import AutoConfig

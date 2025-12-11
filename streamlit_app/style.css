@@ -1,12 +1,49 @@
+:root {
+  --primary: #d8000d;
+  --primary-dark: #b4000b;
+  --text: #111111;
+  --muted: #6B7280;
+  --surface: #F5F5F5;
+  --surface-alt: #F5F5F5;
+  --radius: 8px;
+}
+
 h1,
 h2,
 h3,
 h4 {
-  color: #000000;
+  color: var(--text);
 }
 
+/* Link styles */
+a {
+  color: var(--primary);
+}
+
+a:hover {
+  color: var(--primary-dark);
+}
+
+a:visited {
+  color: var(--primary);
+}
+
+a:active {
+  color: var(--primary-dark);
+}
+
+/* Sidebar link styles */
+section[data-testid="stSidebar"] a {
+  color: var(--primary);
+}
+
+section[data-testid="stSidebar"] a:hover {
+  color: var(--primary-dark);
+}
+
+/* Inline code accent */
 code {
-  color: #1ec3bc;
+  color: var(--primary);
 }
 
 #MainMenu {
@@ -31,7 +68,7 @@ footer {
 /* Sidebar */
 
 section[data-testid="stSidebar"] > div {
-  background-color: #10b8dd;
+  background-color: var(--surface);
   padding-top: 2rem;
   padding-left: 1.5rem;
 }
@@ -49,17 +86,55 @@ section[data-testid="stSidebar"] .st-bk {
 }
 
 section[data-testid="stSidebar"] .st-c0 {
-  background-color: black;
+  background-color: white;
 }
 
 section[data-testid="stSidebar"] hr {
   margin-top: 30px;
-  border-color: white;
+  border-color: #e5e7eb;
   width: 50px;
 }
 
-section[data-testid="stSidebar"] h2 {
-  color: white;
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+  color: var(--primary);
+}
+
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label {
+  color: var(--text);
+}
+
+/* Buttons - outlined with brand-colored text only */
+.stButton > button,
+.stDownloadButton > button {
+  background: var(--surface);
+  color: var(--primary);
+  border: 2px solid #e5e7eb;
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {
+  background: var(--surface-alt);
+  color: var(--primary-dark);
+  border-color: #d1d5db;
+}
+
+.stButton > button:focus,
+.stDownloadButton > button:focus {
+  outline: 3px solid rgba(17, 24, 39, 0.15);
+  outline-offset: 2px;
+}
+
+/* Selects and text inputs */
+.stSelectbox div[data-baseweb="select"] > div,
+.stTextInput > div > div > input,
+.stTextArea > div > textarea,
+.stNumberInput > div > div input {
+  border-radius: var(--radius);
 }
 
 /* Images */
@@ -73,7 +148,7 @@ button[title="View fullscreen"] {
 hr {
   width: 200px;
   border-width: 5px;
-  border-color: #10b8dd;
+  border-color: #e5e7eb;
   margin-top: 0px;
 }
 
@@ -82,4 +157,44 @@ hr {
 section[tabindex="0"] .block-container {
   padding-top: 0px;
   padding-bottom: 0px;
+}
+
+section[tabindex="0"] .block-container h1 {
+  color: var(--primary);
+}
+
+/* Brand link overrides (beat Emotion hashed classes) */
+section[data-testid="stAppViewContainer"] .block-container a {
+  color: var(--primary) !important;
+  text-decoration: none !important;
+}
+
+section[data-testid="stAppViewContainer"] .block-container a:hover,
+section[data-testid="stAppViewContainer"] .block-container a:active {
+  color: var(--primary-dark) !important;
+  text-decoration: underline !important;
+}
+
+/* Force brand colors on links (including unvisited) */
+a:link {
+  color: var(--primary) !important;
+}
+
+a:hover,
+a:active {
+  color: var(--primary-dark) !important;
+}
+
+a:visited {
+  color: var(--primary-dark) !important;
+}
+
+/* Safe padding for toolbar/header overlap */
+.stMain {
+  padding-top: 56px;
+  padding-bottom: 56px;
+}
+
+hr {
+  width: 100%;
 }

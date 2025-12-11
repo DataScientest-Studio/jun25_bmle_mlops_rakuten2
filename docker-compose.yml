@@ -1,21 +1,206 @@
 services:
   postgres:
+    env_file:
+      - .env
     image: postgres:16
     container_name: rakuten_db
     restart: unless-stopped
     ports:
       - "5433:5432"  # Expose le port Postgres pour les clients locaux
     environment:
-      POSTGRES_DB: rakuten
-      POSTGRES_USER: mlops
-      POSTGRES_PASSWORD: mlops
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
-      - ./import:/import:ro   # Monte les CSV d'import en lecture seule dans le conteneur
-      - ./sql:/sql:ro         # Monte les scripts SQL pour des exécutions répétables via init.sh
+      - ./data/raw:/import:ro
+      - ./postgres/sql:/docker-entrypoint-initdb.d/sql:ro
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+      - ./postgres/dump:/docker-entrypoint-initdb.d/dump:ro
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mlops -d rakuten"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
-    # Aucun autre service n'est requis : cette base sert de socle au pipeline MLOps.
+    networks:
+      - mlops_network
+
+  mlflow:
+    build:
+      context: ./mlflow
+      dockerfile: Dockerfile
+      args:
+        - APPUSER_UID=${APPUSER_UID:-1000}
+    container_name: rakuten_mlflow
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_HOST=0.0.0.0
+      - MLFLOW_SERVE_ARTIFACTS=true
+      - MLFLOW_TRACKING_ALLOW_INSECURE_HTTP=true
+    volumes:
+      - mlflow_data:/mlflow
+    depends_on:
+      - postgres
+    networks:
+      - mlops_network
+    command:
+      [
+        "mlflow", "server",
+        "--backend-store-uri", "postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@postgres:5432/mlflow",
+        "--default-artifact-root", "/mlflow/artifacts",
+        "--host", "0.0.0.0",
+        "--port", "5000",
+        "--allowed-hosts", "*"
+      ]
+
+  api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+      args:
+        - APPUSER_UID=${APPUSER_UID:-1000}
+    container_name: rakuten_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${DATABASE_NAME}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - mlflow_data:/mlflow
+    depends_on:
+      - postgres
+      - mlflow
+    networks:
+      - mlops_network
+
+  airflow:
+    image: apache/airflow:2.8.1
+    container_name: rakuten_airflow
+    restart: unless-stopped
+    ports:
+      - "${AIRFLOW_PORT}:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@postgres:5432/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+      - _AIRFLOW_WWW_USER_USERNAME=${AIRFLOW_USER}
+      - _AIRFLOW_WWW_USER_PASSWORD=${AIRFLOW_PASSWORD}
+      - AIRFLOW__CORE__FERNET_KEY=81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs=
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_SECRET_KEY}
+      - AIRFLOW_CONN_RAKUTEN_API=http://api:${API_PORT}
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - _PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-http==4.5.0 mlflow
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    depends_on:
+      - postgres
+    command: >
+      bash -c "
+        airflow db init
+        airflow users create --username ${AIRFLOW_USER} --password ${AIRFLOW_PASSWORD} --firstname Admin --lastname User --role Admin --email ${AIRFLOW_EMAIL} 2>/dev/null || true &&
+        airflow webserver -p 8080 & airflow scheduler
+      "
+    networks:
+      - mlops_network
+
+  streamlit_app:
+    build:
+      context: ./streamlit_app
+      dockerfile: Dockerfile
+    container_name: rakuten_streamlit_app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://api:8000
+    depends_on:
+      - api
+    networks:
+      - mlops_network
+    command:
+      [
+        "streamlit", "run", "app.py",
+        "--server.port", "8501"
+      ]
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: rakuten_node_exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - mlops_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rakuten_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus:/etc/prometheus:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      - node_exporter
+    networks:
+      - mlops_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rakuten_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - mlops_network
+
+volumes:
+  postgres_data:
+    driver: local
+  mlflow_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  mlops_network:
+    driver: bridge

@@ -362,156 +362,12 @@ class ModelEvaluationPipeline:
         trainer: Any
     ) -> Dict[str, Any]:
         """
-        Analyse SHAP decomposee par composante de features.
+        Analyse SHAP decomposee par composante.
         
-        Necessite :
-        - pip install shap
-        - feature_mapping depuis stage03
-        
-        Args:
-            model: Modele entraine
-            X: Features (matrice complete)
-            feature_mapping: Mapping des ranges {'text': (0, 15000), ...}
-            trainer: Trainer pour decoder les classes
-            
-        Returns:
-            Dict avec SHAP values par composante
+        TEMPORAIREMENT DÉSACTIVÉ
         """
-        try:
-            import shap
-        except ImportError:
-            logger.error("SHAP n'est pas installe. Installez avec: pip install shap")
-            return {}
-        
-        logger.info("\n" + "=" * 70)
-        logger.info("ANALYSE SHAP DECOMPOSEE PAR COMPOSANTE")
-        logger.info("=" * 70)
-        
-        max_samples = min(self.shap_decomposed_samples, X.shape[0])
-        logger.info(f"Echantillon SHAP: {max_samples} lignes")
-        logger.info(f"Composantes detectees: {list(feature_mapping.keys())}")
-        
-        # Echantillonner si necessaire
-        if X.shape[0] > max_samples:
-            indices = np.random.choice(X.shape[0], max_samples, replace=False)
-            X_sample = X[indices]
-        else:
-            X_sample = X
-        
-        # Creer l'explainer
-        logger.info("\nCreation de l'explainer SHAP...")
-        explainer = shap.TreeExplainer(model)
-        
-        logger.info("Calcul des SHAP values...")
-        with Timer("SHAP values"):
-            shap_values = explainer.shap_values(X_sample)
-        
-        # Si multi-classe, shap_values est une liste
-        if isinstance(shap_values, list):
-            n_classes = len(shap_values)
-        else:
-            n_classes = 1
-            shap_values = [shap_values]
-        
-        logger.info(f"SHAP values calculees pour {n_classes} classes")
-        
-        # Decomposer par composante
-        results = {
-            'components': {},
-            'global_importance': {},
-            'per_class_importance': {}
-        }
-        
-        logger.info("\n--- Decomposition par composante ---")
-        
-        for component_name, (start, end) in feature_mapping.items():
-            logger.info(f"\n Analyse de {component_name} (colonnes {start}-{end})")
-            
-            # Extraire les SHAP values pour cette composante
-            component_shap_values = []
-            
-            for class_idx in range(n_classes):
-                # SHAP values pour cette classe et cette composante
-                shap_class = shap_values[class_idx][:, start:end]
-                component_shap_values.append(shap_class)
-                
-                # Importance moyenne pour cette classe
-                importance = np.abs(shap_class).mean()
-                
-                # Decoder l'ID de classe
-                class_id = int(trainer.label_encoder.classes_[class_idx])
-                
-                if class_id not in results['per_class_importance']:
-                    results['per_class_importance'][class_id] = {}
-                
-                results['per_class_importance'][class_id][component_name] = float(importance)
-            
-            # Importance globale (moyenne sur toutes les classes)
-            global_importance = np.mean([
-                np.abs(shap_class).mean() 
-                for shap_class in component_shap_values
-            ])
-            
-            results['global_importance'][component_name] = float(global_importance)
-            results['components'][component_name] = {
-                'start': int(start),
-                'end': int(end),
-                'n_features': int(end - start)
-            }
-            
-            logger.info(f"  Importance globale: {global_importance:.6f}")
-        
-        # Sauvegarder les resultats JSON
-        output_json = self.output_dir / "shap_decomposed.json"
-        with open(output_json, 'w') as f:
-            json.dump(results, f, indent=2)
-        
-        logger.info(f"\n[OK] Resultats SHAP decompose: {output_json}")
-        
-        # Sauvegarder un resume texte
-        output_txt = self.output_dir / "shap_summary.txt"
-        with open(output_txt, 'w') as f:
-            f.write("=" * 70 + "\n")
-            f.write("IMPORTANCE GLOBALE PAR COMPOSANTE\n")
-            f.write("=" * 70 + "\n\n")
-            
-            for comp, imp in sorted(
-                results['global_importance'].items(), 
-                key=lambda x: x[1], 
-                reverse=True
-            ):
-                f.write(f"{comp:25s} : {imp:.6f}\n")
-            
-            f.write("\n" + "=" * 70 + "\n")
-            f.write("TOP 3 COMPOSANTES PAR CLASSE\n")
-            f.write("=" * 70 + "\n\n")
-            
-            for class_id in sorted(results['per_class_importance'].keys()):
-                class_name = self.labels_map.get(class_id, str(class_id))
-                f.write(f"\nClasse {class_id} - {class_name}:\n")
-                
-                # Trier par importance
-                class_importances = results['per_class_importance'][class_id]
-                top3 = sorted(class_importances.items(), key=lambda x: x[1], reverse=True)[:3]
-                
-                for comp, val in top3:
-                    f.write(f"  {comp:25s}: {val:.6f}\n")
-        
-        logger.info(f"[OK] Resume texte: {output_txt}")
-        
-        # Afficher un resume dans les logs
-        logger.info("\n" + "=" * 70)
-        logger.info("IMPORTANCE GLOBALE PAR COMPOSANTE")
-        logger.info("=" * 70)
-        for comp, imp in sorted(
-            results['global_importance'].items(), 
-            key=lambda x: x[1], 
-            reverse=True
-        ):
-            logger.info(f"  {comp:25s} : {imp:.6f}")
-        logger.info("=" * 70 + "\n")
-        
-        return results
+        logger.info("SHAP décomposé temporairement désactivé")
+        return {}
 
     def maybe_run_shap(
         self,
@@ -522,41 +378,10 @@ class ModelEvaluationPipeline:
         """
         Lance SHAP standard si active dans la config.
         
-        Args:
-            model: Modele entraine
-            X: Features
-            trainer: Trainer (optionnel)
+        TEMPORAIREMENT DÉSACTIVÉ
         """
-        if not self.shap_enabled:
-            logger.info("SHAP desactive dans la configuration.")
-            return
-        
-        try:
-            import shap
-        except ImportError:
-            logger.error("SHAP n'est pas installe. Installez avec: pip install shap")
-            return
-        
-        logger.info("\n--- Analyse SHAP standard ---")
-        
-        max_samples = min(self.shap_samples, X.shape[0])
-        logger.info(f"Echantillon SHAP: {max_samples} lignes")
-        
-        # Echantillonner
-        if X.shape[0] > max_samples:
-            indices = np.random.choice(X.shape[0], max_samples, replace=False)
-            X_sample = X[indices]
-        else:
-            X_sample = X
-        
-        # Creer explainer
-        explainer = shap.TreeExplainer(model)
-        
-        with Timer("SHAP values (standard)"):
-            shap_values = explainer.shap_values(X_sample)
-        
-        logger.info("[OK] SHAP values calcules")
-        logger.info("Pour visualiser, utilisez shap.summary_plot() dans un notebook")
+        logger.info("SHAP temporairement désactivé")
+        return
 
     def run(
         self,

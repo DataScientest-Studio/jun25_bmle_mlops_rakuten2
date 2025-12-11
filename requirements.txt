@@ -20,8 +20,8 @@ squarify==0.4.3
 streamlit==1.49.1
 toml==0.10.2
 tomli==2.2.1
-torch==2.8.0
-torchvision==0.23.0
+torch==2.5.1
+torchvision==0.20.1
 tqdm==4.67.1
 wordcloud==1.9.4
 xgboost==1.7.6
@@ -34,3 +34,7 @@ uvicorn>=0.24.0
 pydantic>=2.0.0
 python-json-logger>=2.0.0
 dvc==3.64.0
+dvc_s3==3.2.2
+streamlit>=1.32,<2
+pandas>=2.2,<3
+numpy>=1.24,<2

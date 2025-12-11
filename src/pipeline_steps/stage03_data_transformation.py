@@ -218,9 +218,9 @@ class DataTransformationPipeline:
                 cnn_config = self.config.get("features.image.cnn", {})
                 
                 # Determiner le chemin des images
-                image_dir = self.config.get("paths.image_train_dir", 
+                image_dir = self.config.get("images.train_dir", 
                                            self.config.get("images.train_dir", 
-                                                          "data/images/images/image_train"))
+                                                          "data/images/image_train"))
                 
                 logger.info(f"  Architecture: {cnn_config.get('arch', 'resnet50')}")
                 logger.info(f"  Batch size: {cnn_config.get('batch_size', 16)}")

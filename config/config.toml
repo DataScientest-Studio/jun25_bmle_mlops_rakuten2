@@ -83,7 +83,7 @@ shap_decomposed_samples = 1000  # Moins pour eviter OOM
 # FEATURES TEXTE
 # ========================================
 [features.text]
-max_features = 30000
+max_features = 10000
 ngram_min = 1
 ngram_max = 2
 min_df = 5
@@ -108,7 +108,7 @@ use_language_detection = false  # Coûteux
 # --- Lexiques (chi2) ---
 [features.text.lexicon]
 enabled = true
-top_k = 60
+top_k = 30
 min_df = 3
 max_df = 0.98
 
@@ -171,7 +171,7 @@ random_state = 42
 # --- CNN ResNet/ViT ---
 [features.image.cnn]
 # IMPORTANT : Activer CNN ici
-enabled = true  # true pour utiliser CNN, false pour désactiver
+enabled = false  # true pour utiliser CNN, false pour désactiver
 
 # Architecture
 arch = "resnet50"  # Options: "resnet18", "resnet50", "resnet101"
@@ -248,7 +248,7 @@ n_jobs = 4
 # RÈGLE : Si features.image.cnn.enabled = true → image_cnn > 0
 text = 1.0
 image_pixels = 0.0     # 0 si CNN activé, 1.0 si pixels seuls
-image_cnn = 0.8        # 1.0 si CNN activé, 0 sinon
+image_cnn = 0        # 1.0 si CNN activé, 0 sinon
 image_cnn_vit = 0.0    # 1.0 si ViT activé
 image_stats = 0.0      # 0.5-1.0 si stats activées
 

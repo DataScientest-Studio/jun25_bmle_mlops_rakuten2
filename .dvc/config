@@ -1,0 +1,7 @@
+[core]
+    remote = origin
+[cache]
+    type = "reflink,copy"
+['remote "origin"']
+    url = s3://dvc
+    endpointurl = https://dagshub.com/me994/jun25_bmle_mlops_rakuten2.s3

@@ -1,72 +1,47 @@
-# Fichiers de configuration
-# Environnements
+########################################
+# Environnements / configuration locale
+########################################
+venv_raku310/
 venv/
 .venv*/
 env/
 ENV/
 
-# Python caches
+# Fichiers d'environnement (si utilisés)
+*.env
+
+########################################
+# Python / bytecode / métadonnées
+########################################
+
 __pycache__/
 *.py[cod]
 *.egg-info/
 
-# Jupyter
-.ipynb_checkpoints/
+########################################
+# Données lourdes / brutes
+########################################
+postgres/dump/rakuten_dump.sql
 
-# Données lourdes (adapte si besoin)
-data/images/
-Scripts perso.raku
-/venv/
-/.venv*/
-/venv_raku310
+########################################
+# OS / fichiers système
+########################################
 
-# caches / artefacts locaux
-__pycache__/
-*.py[cod]
-*.egg-info/
-.ipynb_checkpoints/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Données lourdes (adapte si besoin)
-data/images/
-data/raw/
-rakuten_dump.sql
-# OS
 .DS_Store
-Thumbs.dbresults/*.npy
-results/*.npz
-results/*_oof.npy
-results/*_oof.npz
-results/*svd*_preview.csv
-results/*svd*_preview.csv.gz
-data/X_train_update_with_imgstats.csv
-data/image_object_dims.csv
-data/X_train_update
-models/*.joblib
-notebooks/df.csvresults/Sorties_�_enregistrer/
-results/*_oof.*
-results/*svd*_preview.csv*
-notebooks/df.csv
-results/Sorties_a_enregistrer/
-results/desktop.ini
-results/GREG B4 PCA
-artifacts/
-# outputs lourds
-models/*.joblib
-*.npy
-*.npz
-*.pt
-*.h5
-# Bytecode / caches
-__pycache__/
-*.pyc
-*.pyo
+Thumbs.db
 
+########################################
+# Résultats / artefacts de run
+########################################
 
 results/
 reports/
+artifacts/
+
+########################################
+# Modèles / poids / arrays
+########################################
+
 models/*.joblib
 *.npy
 *.npz
@@ -74,3 +49,15 @@ models/*.joblib
 *.h5
 *.pkl
 
+########################################
+# Divers spécifiques au repo
+########################################
+
+Scripts perso.raku
+
+########################################
+# Airflow
+########################################
+# ignore airflow logs but keep the directory
+airflow/logs/*
+!airflow/logs/.gitkeep
