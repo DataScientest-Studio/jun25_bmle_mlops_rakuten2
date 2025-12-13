@@ -430,22 +430,24 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
                 nloc = len(X_rows)
                 while i < nloc:
                     j = min(i + batch_size, nloc)
-                    paths_slice = [self._path_from_row(X_rows.iloc[k]) for k in range(i, j)]
                     imgs, ys = [], []
-                    for k, p in enumerate(paths_slice, start=i):
-                        if os.path.exists(p):
-                            try:
-                                with Image.open(p).convert("RGB") as im:
-                                    t = self._preprocess(im)
-                                    if aug is not None:
-                                        # repasse par PIL pour les aug torchvision
-                                        t = transforms.ToPILImage()(t)
-                                        t = aug(t)
-                                        t = transforms.ToTensor()(t)
-                                    imgs.append(t)
-                                ys.append(int(y_vec[k]))
-                            except Exception:
-                                pass
+                    for k in range(i, j):
+                        row = X_rows.iloc[k]
+                        img_bytes = row.get(self.image_col, None) if hasattr(row, 'get') else row[self.image_col]
+                        if pd.isna(img_bytes) or img_bytes is None:
+                            continue
+                        try:
+                            img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+                            t = self._preprocess(img)
+                            if aug is not None:
+                                # repasse par PIL pour les aug torchvision
+                                t = transforms.ToPILImage()(t)
+                                t = aug(t)
+                                t = transforms.ToTensor()(t)
+                            imgs.append(t)
+                            ys.append(int(y_vec[k]))
+                        except Exception:
+                            pass
                     yield imgs, ys
                     i = j
 
