@@ -22,3 +22,6 @@ lightgbm>=4.0.0
 # Utilities
 python-dotenv==1.2.1
 pydantic==2.12.4
+
+# Monitoring
+prometheus-client==0.21.0

@@ -34,8 +34,10 @@ from typing import Optional
 import re  # pour nettoyer le nom de modèle
 
 import psycopg2
-from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from schemas import (
     PredictionResponse,
@@ -68,6 +70,88 @@ REGISTERED_MODEL_NAME = "model"
 PRODUCTION_ALIAS = "production"
 
 # =======================================================================
+# Prometheus Metrics
+# =======================================================================
+
+# Counters for API calls
+training_call_counter = Counter(
+    'api_training_calls_total',
+    'Total number of training API calls',
+    ['status']  # status: success, error
+)
+
+predict_call_counter = Counter(
+    'api_predict_calls_total',
+    'Total number of predict API calls',
+    ['status']  # status: success, error
+)
+
+reload_model_call_counter = Counter(
+    'api_reload_model_calls_total',
+    'Total number of reload-model API calls',
+    ['status']  # status: success, error
+)
+
+# Histograms for request duration (in seconds)
+training_duration = Histogram(
+    'api_training_duration_seconds',
+    'Duration of training API calls in seconds',
+    buckets=[1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600]  # Up to 1 hour
+)
+
+predict_duration = Histogram(
+    'api_predict_duration_seconds',
+    'Duration of predict API calls in seconds',
+    buckets=[0.1, 0.5, 1, 2, 5, 10, 15, 30, 45, 60]  # Alert threshold at 45s
+)
+
+# HTTP response code counter
+http_response_counter = Counter(
+    'api_http_responses_total',
+    'Total number of HTTP responses',
+    ['method', 'endpoint', 'status_code']  # method, endpoint, status_code
+)
+
+# =======================================================================
+# Middleware for HTTP response code tracking
+# =======================================================================
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            response = await call_next(request)
+            
+            # Extract endpoint path (remove query params)
+            endpoint = request.url.path
+            
+            # Track HTTP response codes
+            try:
+                status_code = getattr(response, 'status_code', 200)
+                http_response_counter.labels(
+                    method=request.method,
+                    endpoint=endpoint,
+                    status_code=status_code
+                ).inc()
+            except Exception as metric_error:
+                # If metrics fail, log but don't break the request
+                logger.warning(f"Failed to record metrics: {metric_error}")
+            
+            return response
+        except Exception as e:
+            # Track 500 errors
+            endpoint = request.url.path
+            try:
+                http_response_counter.labels(
+                    method=request.method,
+                    endpoint=endpoint,
+                    status_code=500
+                ).inc()
+            except Exception as metric_error:
+                # If metrics fail, log but don't break the request
+                logger.warning(f"Failed to record metrics for error: {metric_error}")
+            raise
+
+# =======================================================================
 # Configuration de l'application
 # =======================================================================
 
@@ -93,6 +177,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add Prometheus middleware for HTTP response tracking
+app.add_middleware(PrometheusMiddleware)
 
 # Variables globales
 predictor = None
@@ -327,6 +414,12 @@ async def root():
     }
 
 
+@app.get("/metrics", tags=["System"])
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """Health check."""
@@ -383,25 +476,31 @@ async def reload_model():
     
     logger.info("Rechargement du modèle de production demandé...")
     
-    loaded = load_production_model_from_mlflow()
-    
-    if loaded:
-        model_info = predictor.get_model_info() if predictor else {}
-        logger.info(
-            "Modèle de production rechargé avec succès: %s",
-            model_info.get("model_type", "unknown")
+    try:
+        loaded = load_production_model_from_mlflow()
+        
+        if loaded:
+            model_info = predictor.get_model_info() if predictor else {}
+            logger.info(
+                "Modèle de production rechargé avec succès: %s",
+                model_info.get("model_type", "unknown")
+            )
+            reload_model_call_counter.labels(status="success").inc()
+            return {
+                "status": "success",
+                "message": "Modèle de production rechargé avec succès",
+                "model_type": model_info.get("model_type"),
+                "model_path": model_info.get("model_path"),
+            }
+        
+        reload_model_call_counter.labels(status="error").inc()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Aucun modèle avec l'alias 'production' trouvé dans MLflow",
         )
-        return {
-            "status": "success",
-            "message": "Modèle de production rechargé avec succès",
-            "model_type": model_info.get("model_type"),
-            "model_path": model_info.get("model_path"),
-        }
-    
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Aucun modèle avec l'alias 'production' trouvé dans MLflow",
-    )
+    except Exception as e:
+        reload_model_call_counter.labels(status="error").inc()
+        raise
 
 
 @app.post("/predict/", response_model=PredictionResponse, tags=["Prediction"])
@@ -423,51 +522,78 @@ async def predict(
     """
     global predictor
     
-    if predictor is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Aucun modèle chargé. Entraînez d'abord un modèle ou attendez le chargement du modèle de production.",
-        )
-    
-    # Vérifier le type de fichier
-    if image.content_type not in ["image/jpeg", "image/jpg", "image/png"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Type de fichier non supporté: {image.content_type}. Utilisez JPEG ou PNG.",
-        )
+    start_time = time.time()
     
     try:
-        image_bytes = await image.read()
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Erreur lors de la lecture de l'image: {str(e)}",
+        if predictor is None:
+            predict_call_counter.labels(status="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Aucun modèle chargé. Entraînez d'abord un modèle ou attendez le chargement du modèle de production.",
+            )
+        
+        # Vérifier le type de fichier
+        if image.content_type not in ["image/jpeg", "image/jpg", "image/png"]:
+            predict_call_counter.labels(status="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Type de fichier non supporté: {image.content_type}. Utilisez JPEG ou PNG.",
+            )
+        
+        try:
+            image_bytes = await image.read()
+        except Exception as e:
+            predict_call_counter.labels(status="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Erreur lors de la lecture de l'image: {str(e)}",
+            )
+        
+        # Créer un DataFrame avec les colonnes attendues par le pipeline
+        df = pd.DataFrame({
+            "designation": [designation],
+            "description": [description] if description else [None],
+            "image_binary": [image_bytes],  # Bytes directs, pas base64
+        })
+        
+        # Utiliser predict_with_confidence pour obtenir prédiction, confiance et top classes
+        results = predictor.predict_with_confidence(df)
+        
+        # Extraire le premier résultat (on ne prédit qu'un seul produit)
+        if not results:
+            predict_call_counter.labels(status="error").inc()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Aucun résultat de prédiction retourné.",
+            )
+        
+        result = results[0]
+        
+        # Record metrics on success
+        duration = time.time() - start_time
+        predict_duration.observe(duration)
+        predict_call_counter.labels(status="success").inc()
+        
+        return PredictionResponse(
+            prediction=result["prediction"],
+            confidence=result.get("confidence"),
+            top_classes=result.get("top_classes"),
         )
-    
-    # Créer un DataFrame avec les colonnes attendues par le pipeline
-    df = pd.DataFrame({
-        "designation": [designation],
-        "description": [description] if description else [None],
-        "image_binary": [image_bytes],  # Bytes directs, pas base64
-    })
-    
-    # Utiliser predict_with_confidence pour obtenir prédiction, confiance et top classes
-    results = predictor.predict_with_confidence(df)
-    
-    # Extraire le premier résultat (on ne prédit qu'un seul produit)
-    if not results:
+    except HTTPException:
+        # Re-raise HTTP exceptions (they're already handled)
+        duration = time.time() - start_time
+        predict_duration.observe(duration)
+        raise
+    except Exception as e:
+        # Handle unexpected errors
+        duration = time.time() - start_time
+        predict_duration.observe(duration)
+        predict_call_counter.labels(status="error").inc()
+        logger.error(f"Unexpected error in predict: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Aucun résultat de prédiction retourné.",
+            detail=f"Erreur interne: {str(e)}",
         )
-    
-    result = results[0]
-    
-    return PredictionResponse(
-        prediction=result["prediction"],
-        confidence=result.get("confidence"),
-        top_classes=result.get("top_classes"),
-    )
 
 @app.post("/training/", response_model=TrainingResponse, tags=["Training"])
 async def train_model(request: TrainingRequest):
@@ -778,6 +904,10 @@ async def train_model(request: TrainingRequest):
 
             logger.info("Entraînement terminé en %.2fs", training_time)
 
+            # Record Prometheus metrics
+            training_duration.observe(training_time)
+            training_call_counter.labels(status="success").inc()
+
             # Filtrer les métriques pour ne garder que les valeurs numériques
             filtered_metrics = None
             if metrics and isinstance(metrics, dict):
@@ -860,10 +990,15 @@ async def train_model(request: TrainingRequest):
 
         traceback.print_exc()
 
+        # Record metrics on error
+        training_time = time.time() - start_time
+        training_duration.observe(training_time)
+        training_call_counter.labels(status="error").inc()
+
         return TrainingResponse(
             status="error",
             message=f"Erreur: {str(e)}",
-            training_time=time.time() - start_time,
+            training_time=training_time,
         )
 
 

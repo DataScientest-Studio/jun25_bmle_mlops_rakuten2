@@ -162,29 +162,7 @@ Dans `config/config.toml` :
 
 ## Architecture MLOps
 
-L'architecture de la plateforme est organisée en 4 phases principales :
-
-### ETL (Extract, Transform, Load)
-
-![Architecture ETL](streamlit_app/assets/ETL.drawio.svg)
-
----
-
-### Training (Entraînement)
-
-![Architecture Training](streamlit_app/assets/architecture.drawio.svg)
-
----
-
-### Inference
-
-![Architecture Inference](streamlit_app/assets/inference.drawio.svg)
-
----
-
-### Monitoring
-
-![Architecture Monitoring](streamlit_app/assets/monitoring.drawio.svg)
+![Architecture globale](global-architecture.drawio.svg)
 
 ---
 

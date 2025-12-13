@@ -196,11 +196,17 @@ services:
       - '--storage.tsdb.path=/prometheus'
     depends_on:
       - node_exporter
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - mlops_network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.0.0
     container_name: rakuten_grafana
     restart: unless-stopped
     ports:
@@ -209,12 +215,15 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DATASOURCES_ALLOW_EDIT=true
+      - GF_INSTALL_PLUGINS=
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
     networks:
       - mlops_network
 
