@@ -19,6 +19,7 @@ Utilisation:
 
 from __future__ import annotations
 
+import gc
 import logging
 from pathlib import Path
 from typing import Any
@@ -194,93 +195,128 @@ class ModelTrainingPipeline:
 
             # Boucle sur les folds
             for fold_idx, (train_idx, val_idx) in fold_iterator:
-                logger.info("\n%s", "=" * 60)
-                logger.info("FOLD %d/%d", fold_idx, n_splits)
-                logger.info("%s", "=" * 60)
-                logger.info("Train: %d échantillons", len(train_idx))
-                logger.info("Val: %d échantillons", len(val_idx))
+                try:
+                    logger.info("\n%s", "=" * 60)
+                    logger.info("FOLD %d/%d", fold_idx, n_splits)
+                    logger.info("%s", "=" * 60)
+                    logger.info("Train: %d échantillons", len(train_idx))
+                    logger.info("Val: %d échantillons", len(val_idx))
 
-                # Splitter les données
-                X_train_fold = X[train_idx]
-                y_train_fold = y_encoded[train_idx]
-                X_val_fold = X[val_idx]
-                y_val_fold = y_encoded[val_idx]
+                    # Nettoyage mémoire avant le fold (sauf pour le premier)
+                    if fold_idx > 1:
+                        logger.debug("Nettoyage mémoire avant fold %d...", fold_idx)
+                        gc.collect()
 
-                # Créer un modèle pour ce fold
-                fold_model = self.trainer.create_model()
+                    # Splitter les données
+                    X_train_fold = X[train_idx]
+                    y_train_fold = y_encoded[train_idx]
+                    X_val_fold = X[val_idx]
+                    y_val_fold = y_encoded[val_idx]
 
-                # Entraîner
-                logger.info("Entraînement du fold...")
+                    # Créer un modèle pour ce fold
+                    fold_model = self.trainer.create_model()
 
-                # ========================================
-                # EARLY STOPPING PAR FOLD
-                # ========================================
-                model_name = self.config.model["name"]
+                    # Entraîner
+                    logger.info("Entraînement du fold...")
 
-                if model_name in ["xgb", "lgbm"]:
-                    early_stopping_rounds = None
-                    if model_name == "xgb":
-                        early_stopping_rounds = self.config.model.get("xgb", {}).get(
-                            "early_stopping_rounds",
-                        )
-                    elif model_name == "lgbm":
-                        early_stopping_rounds = self.config.model.get("lgbm", {}).get(
-                            "early_stopping_rounds",
-                        )
+                    # ========================================
+                    # EARLY STOPPING PAR FOLD
+                    # ========================================
+                    model_name = self.config.model["name"]
 
-                    if early_stopping_rounds:
-                        logger.info(
-                            "Early stopping activé pour ce fold (rounds=%s)",
-                            early_stopping_rounds,
-                        )
-
+                    if model_name in ["xgb", "lgbm"]:
+                        early_stopping_rounds = None
                         if model_name == "xgb":
-                            fold_model.fit(
-                                X_train_fold,
-                                y_train_fold,
-                                eval_set=[(X_val_fold, y_val_fold)],
-                                verbose=False,
+                            early_stopping_rounds = self.config.model.get("xgb", {}).get(
+                                "early_stopping_rounds",
                             )
-                            if hasattr(fold_model, "best_iteration"):
-                                logger.info(
-                                    "Arrêt à l'itération %s",
-                                    fold_model.best_iteration,
-                                )
-
                         elif model_name == "lgbm":
-                            import lightgbm as lgb
-
-                            fold_model.fit(
-                                X_train_fold,
-                                y_train_fold,
-                                eval_set=[(X_val_fold, y_val_fold)],
-                                callbacks=[
-                                    lgb.early_stopping(
-                                        stopping_rounds=early_stopping_rounds,
-                                        verbose=False,
-                                    ),
-                                ],
+                            early_stopping_rounds = self.config.model.get("lgbm", {}).get(
+                                "early_stopping_rounds",
                             )
-                            if hasattr(fold_model, "best_iteration_"):
-                                logger.info(
-                                    "Arrêt à l'itération %s",
-                                    fold_model.best_iteration_,
+
+                        if early_stopping_rounds:
+                            logger.info(
+                                "Early stopping activé pour ce fold (rounds=%s)",
+                                early_stopping_rounds,
+                            )
+
+                            if model_name == "xgb":
+                                fold_model.fit(
+                                    X_train_fold,
+                                    y_train_fold,
+                                    eval_set=[(X_val_fold, y_val_fold)],
+                                    verbose=False,
                                 )
+                                if hasattr(fold_model, "best_iteration"):
+                                    logger.info(
+                                        "Arrêt à l'itération %s",
+                                        fold_model.best_iteration,
+                                    )
+
+                            elif model_name == "lgbm":
+                                import lightgbm as lgb
+
+                                fold_model.fit(
+                                    X_train_fold,
+                                    y_train_fold,
+                                    eval_set=[(X_val_fold, y_val_fold)],
+                                    callbacks=[
+                                        lgb.early_stopping(
+                                            stopping_rounds=early_stopping_rounds,
+                                            verbose=False,
+                                        ),
+                                    ],
+                                )
+                                if hasattr(fold_model, "best_iteration_"):
+                                    logger.info(
+                                        "Arrêt à l'itération %s",
+                                        fold_model.best_iteration_,
+                                    )
+                        else:
+                            # Sans early stopping
+                            fold_model.fit(X_train_fold, y_train_fold)
                     else:
-                        # Sans early stopping
+                        # LR, SVC : pas d'early stopping
                         fold_model.fit(X_train_fold, y_train_fold)
-                else:
-                    # LR, SVC : pas d'early stopping
-                    fold_model.fit(X_train_fold, y_train_fold)
 
-                # Prédire sur validation
-                y_pred = fold_model.predict(X_val_fold)
+                    # Prédire sur validation
+                    y_pred = fold_model.predict(X_val_fold)
 
-                # Calculer F1
-                score = f1_score(y_val_fold, y_pred, average="weighted")
-                cv_scores.append(score)
+                    # Calculer F1
+                    score = f1_score(y_val_fold, y_pred, average="weighted")
+                    cv_scores.append(score)
 
-                logger.info("F1 Score (fold %d): %.4f", fold_idx, score)
+                    logger.info("F1 Score (fold %d): %.4f", fold_idx, score)
+
+                    # Nettoyage mémoire après le fold
+                    del fold_model, y_pred
+                    if hasattr(X_train_fold, "nnz"):  # Sparse matrix
+                        # For sparse matrices, we can't easily delete, but we can clear references
+                        pass
+                    else:
+                        del X_train_fold, X_val_fold
+                    del y_train_fold, y_val_fold
+                    
+                    # Force garbage collection after each fold
+                    gc.collect()
+                    logger.debug("Mémoire nettoyée après fold %d", fold_idx)
+
+                except MemoryError as e:
+                    logger.error(
+                        "Erreur mémoire lors du fold %d: %s", fold_idx, str(e)
+                    )
+                    logger.error(
+                        "Recommandations: réduire num_leaves, max_bin, ou n_estimators"
+                    )
+                    raise
+                except Exception as e:
+                    logger.error(
+                        "Erreur lors du fold %d: %s", fold_idx, str(e)
+                    )
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    raise
 
         cv_scores_arr = np.array(cv_scores, dtype=float)
 
@@ -370,15 +406,20 @@ class ModelTrainingPipeline:
             # 1. Entraîner le modèle
             self.model = self.train_model(X_train, y_train)
 
-            # 2. Sauvegarder le modèle seul
+            # 2. Sauvegarder le modèle seul avec timestamp versioning
+            from datetime import datetime
+            # Use timestamp from config if available (set by API), otherwise generate new one
+            timestamp = self.config.get("training_timestamp") or datetime.now().strftime("%Y%m%d_%H%M%S")
+            
             model_path = self.config.paths.get(
                 "model_out",
-                "models/model.joblib",
+                "models/{kind}_{phase}_{timestamp}.joblib",
             )
 
             model_name = self.config.model["name"]
             model_path = model_path.replace("{kind}", model_name)
             model_path = model_path.replace("{phase}", "final")
+            model_path = model_path.replace("{timestamp}", timestamp)
 
             self.save_model(self.model, model_path)
 

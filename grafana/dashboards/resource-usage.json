@@ -381,9 +381,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(1 - (node_filesystem_avail_bytes{device=\"/dev/vda1\",mountpoint=\"/var/lib\"} / node_filesystem_size_bytes{device=\"/dev/vda1\",mountpoint=\"/var/lib\"})) * 100",
+          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})) * 100",
           "refId": "A",
-          "legendFormat": "Disk Usage"
+          "legendFormat": "Disk Usage (/)"
         }
       ],
       "title": "Disk Usage",

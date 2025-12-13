@@ -1,14 +1,16 @@
 # src/features/cnn_features.py
 # =======================================================
 # Extraire un embedding CNN/ViT compatible scikit-learn
-# → lit imageid/productid, batch, normalise, renvoie csr_matrix
+# → lit image_binary (bytes), batch, normalise, renvoie csr_matrix
 # + FT optionnel, MixUp/CutMix, Grad-CAM (ResNet), Attention Rollout (ViT)
 # =======================================================
 from __future__ import annotations
 import os
+import io
 from typing import List, Dict, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 from PIL import Image
 from scipy import sparse
 
@@ -89,16 +91,17 @@ class HFBackbone(torch.nn.Module):
 class CNNFeaturizer(BaseEstimator, TransformerMixin):
     """
     Transformer sklearn qui :
-      - lit les fichiers images à partir de imageid/productid
+      - charge les images depuis image_binary (bytes)
       - extrait un embedding CNN pré-entraîné (ResNet) OU ViT (HF)
       - renvoie un csr_matrix (bien compatible avec TF-IDF sparse)
       - peut faire un fine-tuning léger + data augmentation (MixUp/CutMix)
       - peut générer des heatmaps Grad-CAM (ResNet) / Attention Rollout (ViT)
+    
+    Compatible avec les inputs de l'API: designation, description, image_binary.
     """
     @profile_func
     def __init__(
         self,
-        image_dir: str,
         arch: str = "resnet50",
         batch_size: int = 32,
         device: str = "auto",           # "auto" | "cpu" | "cuda" | "dml"
@@ -106,6 +109,9 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
         fallback_zero: bool = True,     # image manquante → vecteur 0
         dtype: str = "float32",         # "float32" conseillé (mémoire)
         num_workers: int = 0,
+        image_col: str = "image_binary",  # Colonne contenant les images en bytes
+        # Legacy parameter kept for sklearn.clone compatibility but ignored
+        image_dir: Optional[str] = None,
 
         # --- paramètres unfreeze / FT / HF ---
         trainable_last_n: int = 0,      # nb de paramètres à défiger (fallback)
@@ -184,16 +190,19 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
         self.random_resized_crop_scale = self.rrc_scale
         self.random_resized_crop_ratio = self.rrc_ratio
         self.label_smoothing = float(label_smoothing)
+        self.image_col = image_col
 
     # -------- Utilitaires -------------------------------------------------------
-    def _load_one(self, path: str):
-        if not os.path.exists(path):
+    def _load_one_from_bytes(self, image_bytes: bytes):
+        """Charge une image depuis des bytes bruts."""
+        if image_bytes is None:
             return None
         try:
-            with Image.open(path).convert("RGB") as im:
-                return self._preprocess(im)
+            img = Image.open(io.BytesIO(image_bytes))
+            img = img.convert("RGB")
+            return self._preprocess(img)
         except Exception as e:
-            self.log.warning("Image load fail path=%s -> %s", path, e)
+            self.log.warning("Image load fail from bytes -> %s", e)
             return None
 
     @profile_func
@@ -315,11 +324,6 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
             self._model, self._preprocess = self._build_model()
 
     @profile_func
-    def _path_from_row(self, row) -> str:
-        # Nommage Rakuten : image_{imageid}_product_{productid}.jpg
-        fname = f"image_{int(row['imageid'])}_product_{int(row['productid'])}.jpg"
-        return os.path.join(self.image_dir, fname)
-
     # ------------------- Data Augmentation utils (MixUp/CutMix) ----------------
     @staticmethod
     def _mixup(x: torch.Tensor, y: torch.Tensor, alpha: float) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
@@ -677,7 +681,7 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
     @profile_func
     def transform(self, X):
         """
-        X : DataFrame avec colonnes 'imageid' et 'productid'
+        X : DataFrame avec colonne 'image_binary' (bytes)
         Retour : csr_matrix (n_samples, feat_dim)
         """
         self._lazy_load()
@@ -688,8 +692,11 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
         d  = int(self._feat_dim)
         out = np.zeros((n, d), dtype=self.dtype)
 
-        # Chemins des fichiers
-        paths = [self._path_from_row(X.iloc[i]) for i in range(n)]
+        if self.image_col not in X.columns:
+            raise ValueError(
+                f"CNNFeaturizer: Colonne '{self.image_col}' non trouvée. "
+                f"Colonnes disponibles: {list(X.columns)}."
+            )
 
         # Stats
         self.n_total = n
@@ -701,35 +708,37 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
             i = 0
             while i < n:
                 j = min(i + bs, n)
-                paths_slice = paths[i:j]
 
                 imgs, idxs = [], []
-
+                image_binaries = X[self.image_col].iloc[i:j].tolist()
+                
                 if self.num_workers > 0:
                     with ThreadPoolExecutor(max_workers=self.num_workers) as ex:
-                        futs = {ex.submit(self._load_one, p): k for k, p in enumerate(paths_slice, start=i)}
+                        futs = {ex.submit(self._load_one_from_bytes, img_bytes): k for k, img_bytes in enumerate(image_binaries, start=i)}
                         for fut in as_completed(futs):
                             k = futs[fut]
                             t = fut.result()
                             if t is None:
-                                if not os.path.exists(paths[k]):
-                                    self.n_missing += 1
-                                else:
-                                    self.n_failed += 1
+                                self.n_failed += 1
                             else:
                                 imgs.append(t)
                                 idxs.append(k)
                 else:
-                    for k, p in enumerate(paths_slice, start=i):
-                        if os.path.exists(p):
-                            try:
-                                with Image.open(p).convert("RGB") as im:
-                                    imgs.append(self._preprocess(im))
-                                idxs.append(k)
-                            except Exception:
-                                self.n_failed += 1
-                        else:
+                    for k, img_bytes in enumerate(image_binaries, start=i):
+                        if pd.isna(img_bytes) or img_bytes is None:
                             self.n_missing += 1
+                            continue
+                        
+                        if isinstance(img_bytes, bytes):
+                            t = self._load_one_from_bytes(img_bytes)
+                            if t is None:
+                                self.n_failed += 1
+                            else:
+                                imgs.append(t)
+                                idxs.append(k)
+                        else:
+                            self.log.warning(f"Image binary n'est pas des bytes (type: {type(img_bytes)}). Ignoré.")
+                            self.n_failed += 1
 
                 if imgs:
                     batch = torch.stack(imgs, dim=0).to(device)

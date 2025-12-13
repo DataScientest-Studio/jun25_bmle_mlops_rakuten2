@@ -34,8 +34,74 @@ from src.pipelines.text_pipeline import create_text_pipeline_from_cfg
 from src.pipelines.image_pipeline import create_image_pipeline_from_cfg
 from src.features.cnn_features import CNNFeaturizer
 from src.utils.profiling import Timer
+from pathlib import Path
+import os
 
 logger = logging.getLogger(__name__)
+
+
+def load_images_to_binary(
+    df: pd.DataFrame,
+    image_dir: str,
+    imgid_col: str = "imageid",
+    pid_col: str = "productid",
+    ext: str = ".jpg"
+) -> pd.DataFrame:
+    """
+    Charge les images depuis les fichiers et les stocke comme bytes dans 'image_binary'.
+    
+    Ceci permet au pipeline de features d'utiliser le mode binary (image_binary)
+    au lieu du mode legacy (imageid/productid), rendant le pipeline compatible
+    avec les inputs de l'API (designation, description, image_binary).
+    
+    Args:
+        df: DataFrame avec colonnes imageid et productid
+        image_dir: Répertoire contenant les images
+        imgid_col: Nom de la colonne imageid
+        pid_col: Nom de la colonne productid
+        ext: Extension des fichiers image
+        
+    Returns:
+        DataFrame avec colonne 'image_binary' ajoutée
+    """
+    if image_dir is None or not Path(image_dir).exists():
+        logger.warning(f"Image directory not found: {image_dir}. Skipping image loading.")
+        df = df.copy()
+        df['image_binary'] = None
+        return df
+    
+    logger.info(f"\n--- Chargement des images en mode binary ---")
+    logger.info(f"Répertoire: {image_dir}")
+    logger.info(f"Nombre d'images à charger: {len(df)}")
+    
+    image_binaries = []
+    missing_count = 0
+    
+    for idx, row in df.iterrows():
+        try:
+            imgid = str(int(row[imgid_col]))
+            pid = str(int(row[pid_col]))
+        except (ValueError, TypeError):
+            imgid = str(row[imgid_col])
+            pid = str(row[pid_col])
+        
+        fname = f"image_{imgid}_product_{pid}{ext}"
+        fpath = os.path.join(image_dir, fname)
+        
+        if os.path.exists(fpath):
+            with open(fpath, 'rb') as f:
+                image_binaries.append(f.read())
+        else:
+            image_binaries.append(None)
+            missing_count += 1
+    
+    df = df.copy()
+    df['image_binary'] = image_binaries
+    
+    loaded_count = len(df) - missing_count
+    logger.info(f"Images chargées: {loaded_count}/{len(df)} ({missing_count} manquantes)")
+    
+    return df
 
 
 class DataTransformationPipeline:
@@ -92,6 +158,7 @@ class DataTransformationPipeline:
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Applique le reechantillonnage pour equilibrer les classes.
+        Optionnellement limite la taille totale du dataset après rééchantillonnage.
         
         Args:
             X_train: Features d'entrainement
@@ -108,12 +175,15 @@ class DataTransformationPipeline:
         major_class = sampling_config.get("major_class", 2583)
         major_cap = sampling_config.get("major_cap", 2500)
         tail_min = sampling_config.get("tail_min", 1500)
+        max_train_samples = sampling_config.get("max_train_samples", None)
         random_state = self.config.random_seed
         
         logger.info(f"Parametres:")
         logger.info(f"  - Classe majoritaire: {major_class}")
         logger.info(f"  - Cap majorite: {major_cap}")
         logger.info(f"  - Min minorite: {tail_min}")
+        if max_train_samples:
+            logger.info(f"  - Limite totale: {max_train_samples} echantillons")
         
         # Appliquer le sampling
         X_resampled, y_resampled = apply_sampling(
@@ -124,6 +194,56 @@ class DataTransformationPipeline:
             tail_min=tail_min,
             random_state=random_state
         )
+        
+        # Appliquer la limite totale si configurée
+        if max_train_samples is not None and len(X_resampled) > max_train_samples:
+            logger.info(f"\n--- Limitation a {max_train_samples} echantillons ---")
+            logger.info(f"Avant limitation: {len(X_resampled)} echantillons")
+            
+            # Calculer la distribution des classes
+            class_counts = y_resampled.value_counts()
+            total_samples = len(X_resampled)
+            
+            # Calculer le ratio de réduction
+            reduction_ratio = max_train_samples / total_samples
+            
+            # Limiter chaque classe proportionnellement pour préserver l'équilibre
+            indices_to_keep = []
+            rng = np.random.RandomState(random_state)
+            
+            for class_label, count in class_counts.items():
+                # Nombre d'échantillons à garder pour cette classe (proportionnel)
+                target_count = max(1, int(count * reduction_ratio))
+                
+                # Obtenir les indices de cette classe
+                class_indices = X_resampled.index[y_resampled == class_label].tolist()
+                
+                # Échantillonner aléatoirement
+                if len(class_indices) > target_count:
+                    selected_indices = rng.choice(
+                        class_indices, 
+                        size=target_count, 
+                        replace=False
+                    ).tolist()
+                else:
+                    selected_indices = class_indices
+                
+                indices_to_keep.extend(selected_indices)
+            
+            # Réindexer avec les échantillons sélectionnés
+            X_resampled = X_resampled.loc[indices_to_keep]
+            y_resampled = y_resampled.loc[indices_to_keep]
+            
+            # Mélanger à nouveau après limitation
+            shuffled_indices = rng.permutation(len(X_resampled))
+            X_resampled = X_resampled.iloc[shuffled_indices].reset_index(drop=True)
+            y_resampled = y_resampled.iloc[shuffled_indices].reset_index(drop=True)
+            
+            logger.info(f"Apres limitation: {len(X_resampled)} echantillons")
+            logger.info(f"Distribution finale:")
+            final_dist = y_resampled.value_counts().sort_index()
+            for cls, count in final_dist.head(5).items():
+                logger.info(f"  Classe {cls}: {count} echantillons")
         
         logger.info(f"[OK] Reechantillonnage termine: {X_resampled.shape}")
         
@@ -185,11 +305,9 @@ class DataTransformationPipeline:
         image_stats_enabled = self.config.get("features.image.stats.enabled", False)
         
         if image_pixels_enabled or image_stats_enabled:
-            logger.info("Construction de la branche image (pixels/stats)...")
-            image_pipeline = create_image_pipeline_from_cfg(
-                self.config.images,
-                use_test_dir=False  # Train d'abord
-            )
+            logger.info("Construction de la branche image (pixels)...")
+            # Utilise image_binary (bytes) - compatible avec l'API
+            image_pipeline = create_image_pipeline_from_cfg(self.config.images)
             transformers.append(("image_pixels", image_pipeline))
             
             # Poids
@@ -217,19 +335,13 @@ class DataTransformationPipeline:
                 # Parametres CNN depuis config
                 cnn_config = self.config.get("features.image.cnn", {})
                 
-                # Determiner le chemin des images
-                image_dir = self.config.get("images.train_dir", 
-                                           self.config.get("images.train_dir", 
-                                                          "data/images/image_train"))
-                
                 logger.info(f"  Architecture: {cnn_config.get('arch', 'resnet50')}")
                 logger.info(f"  Batch size: {cnn_config.get('batch_size', 16)}")
                 logger.info(f"  Device: {cnn_config.get('device', 'auto')}")
-                logger.info(f"  Image dir: {image_dir}")
+                logger.info("  Mode: image_binary (compatible API)")
                 
-                # Creer le CNNFeaturizer (SANS les paramètres SVD)
+                # Creer le CNNFeaturizer (utilise image_binary)
                 cnn_transformer = CNNFeaturizer(
-                    image_dir=image_dir,
                     arch=cnn_config.get("arch", "resnet50"),
                     batch_size=cnn_config.get("batch_size", 16),
                     device=cnn_config.get("device", "auto"),
@@ -476,6 +588,14 @@ class DataTransformationPipeline:
         logger.info(f"[INFO] Train: {len(X_train)} echantillons a transformer")
         logger.info(f"[INFO] Test: {len(X_test)} echantillons a transformer")
         
+        # SÉCURITÉ: Vérifier que imageid/productid ne sont pas utilisés comme features
+        # Ces colonnes sont présentes pour la construction des chemins d'images uniquement
+        metadata_cols = ['imageid', 'productid', 'row_index']
+        feature_cols = [col for col in X_train.columns if col not in metadata_cols]
+        logger.info(f"  Colonnes de features: {feature_cols}")
+        logger.info(f"  Colonnes de métadonnées (non-features): {[col for col in metadata_cols if col in X_train.columns]}")
+        logger.info("  Note: imageid/productid utilisés uniquement pour construction des chemins, pas comme features")
+        
         # Sauvegarder X_train pour le mapping
         self._original_X_train = X_train.copy()
         
@@ -625,11 +745,61 @@ class DataTransformationPipeline:
         with Timer("Transformation des donnees"):
             
             # ========================================
-            # 1. Reechantillonnage
+            # 1a. Reechantillonnage (train)
             # ========================================
             X_train_resampled, y_train_resampled = self.apply_resampling(
                 X_train, y_train
             )
+            
+            # ========================================
+            # 1b. Limitation des echantillons de test
+            # ========================================
+            max_test_samples = self.config.sampling.get("max_test_samples", None)
+            if max_test_samples is not None and len(X_test) > max_test_samples:
+                logger.info(f"\n--- Limitation du test a {max_test_samples} echantillons ---")
+                logger.info(f"Avant limitation: {len(X_test)} echantillons")
+                X_test = X_test.sample(n=max_test_samples, random_state=self.config.random_seed)
+                X_test = X_test.reset_index(drop=True)
+                logger.info(f"Apres limitation: {len(X_test)} echantillons")
+            
+            # ========================================
+            # 1c. Charger les images en mode binary
+            # ========================================
+            # Convertit productid/imageid -> image_binary pour que le pipeline
+            # soit compatible avec les inputs de l'API (designation, description, image_binary)
+            images_cfg = self.config.images
+            if images_cfg.get("enabled", True) and 'imageid' in X_train_resampled.columns:
+                train_image_dir = images_cfg.get("train_dir")
+                test_image_dir = images_cfg.get("test_dir", train_image_dir)
+                
+                X_train_resampled = load_images_to_binary(
+                    X_train_resampled, 
+                    train_image_dir,
+                    imgid_col="imageid",
+                    pid_col="productid"
+                )
+                X_test = load_images_to_binary(
+                    X_test,
+                    test_image_dir,
+                    imgid_col="imageid", 
+                    pid_col="productid"
+                )
+                
+                # Supprimer les colonnes productid/imageid qui ne sont plus nécessaires
+                # Le pipeline utilisera maintenant image_binary
+                cols_to_drop = ['productid', 'imageid', 'row_index']
+                X_train_resampled = X_train_resampled.drop(
+                    columns=[c for c in cols_to_drop if c in X_train_resampled.columns]
+                )
+                X_test = X_test.drop(
+                    columns=[c for c in cols_to_drop if c in X_test.columns]
+                )
+                logger.info(f"Colonnes finales train: {list(X_train_resampled.columns)}")
+                logger.info(f"Colonnes finales test: {list(X_test.columns)}")
+                
+                # Sauvegarder les inputs bruts pour MLflow (avant transformation en features)
+                # Ces colonnes matchent les inputs de l'API: designation, description, image_binary
+                self.X_train_raw = X_train_resampled.copy()
             
             # ========================================
             # 2. Construction du pipeline

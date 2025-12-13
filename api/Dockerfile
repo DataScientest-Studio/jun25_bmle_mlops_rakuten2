@@ -17,17 +17,17 @@ WORKDIR /app
 COPY api/requirements_working_exact.txt ./requirements_working_exact.txt
 
 # Étape 1 : installation de PyTorch CPU (sans CUDA)
-RUN pip install --no-cache-dir \
+RUN pip install \
     torch==2.5.1 \
     torchvision==0.20.1 \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Étape 2 : filtrer torch/torchvision et tous les packages NVIDIA CUDA et installer le reste des dépendances
 RUN grep -vE "^torch==|^torchvision==|^nvidia-|^triton==" requirements_working_exact.txt > requirements_filtered.txt && \
-    pip install --no-cache-dir -r requirements_filtered.txt
+    pip install -r requirements_filtered.txt
 
 # NLTK (stopwords, tokenisation)
-RUN pip install --no-cache-dir nltk && \
+RUN pip install nltk && \
     python -c "import nltk; nltk.download('stopwords', download_dir='/usr/local/share/nltk_data'); nltk.download('punkt', download_dir='/usr/local/share/nltk_data')"
 
 # Code applicatif

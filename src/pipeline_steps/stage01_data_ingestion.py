@@ -39,6 +39,29 @@ from src.utils.profiling import Timer
 
 logger = logging.getLogger(__name__)
 
+
+def _convert_int_to_float64(df: pd.DataFrame, name: str = "DataFrame") -> pd.DataFrame:
+    """
+    Convertit les colonnes entières en float64 pour éviter les warnings MLflow.
+    
+    MLflow génère un warning quand le schéma contient des colonnes entières car
+    les entiers Python ne peuvent pas représenter les valeurs manquantes (NaN).
+    En convertissant en float64, on évite les erreurs de schéma à l'inférence.
+    
+    Args:
+        df: DataFrame à convertir
+        name: Nom du DataFrame pour le logging
+        
+    Returns:
+        DataFrame avec colonnes entières converties en float64
+    """
+    int_cols = df.select_dtypes(include=['int64', 'int32', 'int16', 'int8']).columns.tolist()
+    if int_cols:
+        logger.debug(f"{name}: Conversion int->float64 pour colonnes {int_cols}")
+        df = df.copy()
+        df[int_cols] = df[int_cols].astype('float64')
+    return df
+
 # Import conditionnel pour PostgreSQL
 try:
     import psycopg2
@@ -191,12 +214,17 @@ class DataIngestionPipeline:
             X_train = df_train.drop(columns=['prdtypecode'])
             y_train = df_train['prdtypecode']
             
+            logger.info("\nMode optimal: Images chargées directement depuis filesystem")
+            logger.info("  imageid/productid conservés pour construction des chemins d'images")
+            logger.info("  Ces IDs ne sont PAS des features - ils servent uniquement à charger les images")
+            
             #  CRÉER un row_index technique pour compatibilité avec le reste du code
             X_train = X_train.reset_index().rename(columns={'index': 'row_index'})
             
             logger.info(f" X_train chargé: {X_train.shape}")
             logger.info(f" y_train chargé: {y_train.shape}")
             logger.info(f"  Colonnes: {list(X_train.columns)}")
+            logger.info(f"  Note: imageid/productid présents pour chargement images (pas des features)")
             
             # ================================================================
             # CHARGER TEST (sans labels) - SANS row_index
@@ -222,11 +250,17 @@ class DataIngestionPipeline:
                     x_test_path=self.config.paths["x_test_csv"]
                 )
             
+            # Les images seront chargées directement depuis le filesystem
+            if len(X_test) > 0:
+                logger.info("\nMode optimal: Images de test chargées directement depuis filesystem")
+                logger.info("  imageid/productid conservés pour construction des chemins")
+            
             #  CRÉER un row_index technique pour compatibilité
             X_test = X_test.reset_index().rename(columns={'index': 'row_index'})
             
             logger.info(f" X_test chargé: {X_test.shape}")
             logger.info(f"  Colonnes: {list(X_test.columns)}")
+            logger.info(f"  Note: imageid/productid présents pour chargement images (pas des features)")
             
             return X_train, y_train, X_test
             
@@ -260,20 +294,26 @@ class DataIngestionPipeline:
                 )
             
             # ========================================
-            # 2. Valider la compatibilité
+            # 2. Convertir int -> float64 (évite warning MLflow)
+            # ========================================
+            X_train = _convert_int_to_float64(X_train, "X_train")
+            X_test = _convert_int_to_float64(X_test, "X_test")
+            
+            # ========================================
+            # 3. Valider la compatibilité
             # ========================================
             logger.info("\n--- Validation de la compatibilité ---")
             validate_dataframes(X_train, X_test)
             
             # ========================================
-            # 3. Analyser les valeurs manquantes
+            # 4. Analyser les valeurs manquantes
             # ========================================
             logger.info("\n--- Analyse des valeurs manquantes ---")
             check_missing_values(X_train, "X_train")
             check_missing_values(X_test, "X_test")
             
             # ========================================
-            # 4. Résumé final
+            # 5. Résumé final
             # ========================================
             logger.info("\n" + "=" * 70)
             logger.info("RÉSUMÉ DE L'INGESTION")

@@ -14,43 +14,8 @@ from pydantic import BaseModel, Field
 # ============================================================================
 # Schémas pour l'endpoint /predict
 # ============================================================================
-
-
-class PredictionRequest(BaseModel):
-    """
-    Requête de prédiction.
-
-    Exemple:
-        {
-            "designation": "iPhone 13 Pro Max 256GB",
-            "description": "Smartphone Apple dernier modèle...",
-            "productid": 123456,
-            "imageid": 789
-        }
-    """
-    designation: str = Field(..., description="Désignation du produit")
-    description: Optional[str] = Field(
-        None,
-        description="Description du produit",
-    )
-    productid: Optional[int] = Field(
-        None,
-        description="ID du produit",
-    )
-    imageid: Optional[int] = Field(
-        None,
-        description="ID de l'image",
-    )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "designation": "Console PlayStation 5",
-                "description": "Console de jeu nouvelle génération avec lecteur Blu-ray",
-                "productid": 123456,
-                "imageid": 789,
-            }
-        }
+# Note: PredictionRequest supprimé - l'API utilise uniquement multipart/form-data
+# Les paramètres sont passés directement via Form() dans main.py
 
 
 class PredictionResponse(BaseModel):

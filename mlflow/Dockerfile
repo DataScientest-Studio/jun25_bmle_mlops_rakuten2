@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Installation de MLflow et du driver PostgreSQL
-RUN pip install --no-cache-dir \
+RUN pip install \
     mlflow==3.6.0 \
     psycopg2-binary==2.9.9
 

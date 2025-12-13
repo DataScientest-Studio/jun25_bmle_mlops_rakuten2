@@ -42,7 +42,7 @@ artifacts/
 # Modèles / poids / arrays
 ########################################
 
-models/*.joblib
+models/**/*.joblib
 *.npy
 *.npz
 *.pt

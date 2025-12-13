@@ -17,7 +17,7 @@ def run():
         st.image(config.get_asset_path("ETL.drawio.svg"))
 
     with tab2:
-        st.image(config.get_asset_path("training.drawio.svg"))
+        st.image(config.get_asset_path("architecture.drawio.svg"))
 
     with tab3:
         st.image(config.get_asset_path("inference.drawio.svg"))

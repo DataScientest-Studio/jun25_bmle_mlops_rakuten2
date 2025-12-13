@@ -9,10 +9,14 @@ et promeut automatiquement le meilleur modèle dans MLflow.
 import logging
 from datetime import datetime, timedelta
 
+import requests
 from airflow import DAG
 from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.operators.python import PythonOperator
 from mlflow.tracking import MlflowClient
+
+# URL de l'API (dans le réseau Docker)
+API_BASE_URL = "http://api:8000"
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
@@ -38,7 +42,7 @@ dag = DAG(
     dag_id="rakuten_training_pipeline",
     default_args=default_args,
     description="Pipeline complet d'entraînement des modèles Rakuten",
-    schedule_interval="*/15 * * * *",  # exécution toutes les 15 minutes
+    schedule_interval="0 0 * * *",  # exécution une fois par jour à minuit
     catchup=False,
     max_active_runs=1,                  # éviter plusieurs runs en parallèle
     tags=["rakuten", "ml", "training"],
@@ -197,6 +201,25 @@ def promote_best_model(**context):
         value="airflow_auto_promotion",
     )
 
+    logger.info(
+        "Model '%s' version %s promoted to 'production'.",
+        REGISTERED_MODEL_NAME,
+        best_version.version,
+    )
+
+    # 6. Recharger le modèle dans l'API
+    logger.info("Notifying API to reload the production model...")
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/reload-model/",
+            headers={"Content-Type": "application/json"},
+            timeout=120,
+        )
+        response.raise_for_status()
+        logger.info("API reloaded successfully: %s", response.json())
+    except requests.exceptions.RequestException as e:
+        logger.warning("Failed to reload API model (non-blocking): %s", e)
+
 
 promote_model = PythonOperator(
     task_id="promote_best_model",
@@ -219,6 +242,7 @@ def log_pipeline_success(**context):
     logger.info(
         "Meilleur modèle promu dans le Model Registry MLflow (alias 'production')"
     )
+    logger.info("API rechargée avec le nouveau modèle de production")
     logger.info("Consultez MLflow pour les résultats : http://localhost:5000")
     logger.info("=" * 60)
 
@@ -233,6 +257,6 @@ log_success = PythonOperator(
 # ============================================
 # DÉFINITION DU FLUX D'EXÉCUTION
 # ============================================
-# Les 3 modèles s'entraînent en parallèle -> promotion -> log
+# Les 3 modèles s'entraînent en parallèle -> promotion (+ reload API) -> log
 [train_lr, train_xgb, train_lgbm] >> promote_model >> log_success
 

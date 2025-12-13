@@ -4,7 +4,7 @@
 
 - **Objectif** : entraîner, évaluer et servir un modèle multimodal (texte + image) pour classer les produits Rakuten (codes `prdtypecode`).
 - **Dataset** : fichiers CSV officiels (`X_train_update.csv`, `Y_train_CVw08PX.csv`, `X_test_update.csv`) et images associées, versionnés via DVC.
-- **Technos clés** : PostgreSQL 16, pipelines scikit-learn/ResNet, PyTorch, XGBoost/LGBM, Streamlit, SHAP, Docker, MLflow, Airflow.
+- **Technos clés** : PostgreSQL 16, pipelines scikit-learn/ResNet, PyTorch, XGBoost/LGBM, Streamlit, SHAP, Docker, MLflow, Airflow, Prometheus, Grafana.
 
 ## Table des matières
 
@@ -42,17 +42,14 @@ cp .env.example .env
 # Récupération des images
 dvc pull ./data/images.dvc
 
-# Récupération des textes
-# Option A : Partir des CSV bruts Rakuten
-# A1. Télécharger via DVC les fichiers dans ./data/raw/
-# dvc pull ./data/raw/X_train_update.csv.dvc
-# dvc pull ./data/raw/Y_train_CVw08PX.csv.dvc
-# dvc pull ./data/raw/X_test_update.csv.dvc
-# A2. Configurer la valeur LOAD_DB_DUMP=0 dans .env
+# Récupération des textes via DVC dans ./data/raw/
+dvc pull ./data/raw/X_train_update.csv.dvc
+dvc pull ./data/raw/Y_train_CVw08PX.csv.dvc
+dvc pull ./data/raw/X_test_update.csv.dvc
 
-# Option B : Télécharger le dump SQL pré-généré via DVC puis charger le dump
-# B1. dvc pull ./postgres/dump/rakuten_dump.sql.dvc
-# B2. Configurer la valeur LOAD_DB_DUMP=1 dans .env
+# Pour accélérer le process local, récupérer le dump SQL pré-généré via DVC puis charger le dump
+# dvc pull ./postgres/dump/rakuten_dump.sql.dvc
+# Configurer la valeur LOAD_DB_DUMP=1 dans .env
 
 # Lancer les services
 docker compose up -d
@@ -65,8 +62,11 @@ docker compose up -d
 | PostgreSQL     | `postgres://mlops:mlops@localhost:5433/rakuten`        | mlops / mlops         |
 | MLflow         | http://localhost:5000                                  | —                     |
 | API FastAPI    | http://localhost:8000                                  | —                     |
-| Airflow        | http://localhost:8081                                  | admin / admin123      |
+| Airflow        | http://localhost:8080                                  | admin / admin123      |
 | Streamlit      | http://localhost:8501                                  | —                     |
+| Prometheus     | http://localhost:9090                                  | —                     |
+| Grafana        | http://localhost:3000                                  | admin / admin         |
+| Node Exporter  | http://localhost:9100                                  | —                     |
 
 ---
 
@@ -81,6 +81,8 @@ Exécution via `python scripts/train_pipeline.py` ou via l'API/Airflow.
 | 3     | `stage03_data_transformation.py` | Feature engineering multimodal |
 | 4     | `stage04_model_training.py` | Entraînement + CV |
 | 5     | `stage05_model_evaluation.py` | Métriques, confusion matrix, SHAP |
+
+![Pipeline ML](streamlit_app/assets/modelisation.drawio.svg)
 
 **Options CLI** :
 ```bash
@@ -115,9 +117,10 @@ Combinaison via `FeatureUnion` avec pondérations configurables dans `config/con
 
 **Configuration** : `config/config.toml` section `[model]`
 
-**Outputs** :
-- `models/model.joblib` : modèle seul
-- `models/model_full_pipeline.joblib` : pipeline complet (features + modèle)
+**Outputs** (versionnés avec timestamp `YYYYMMDD_HHMMSS`) :
+- `models/{model_name}_final_{timestamp}.joblib` : modèle seul
+- `models/{model_name}_full_pipeline_{timestamp}.joblib` : pipeline complet (features + modèle)
+- `models/{model_name}_feature_pipeline_{timestamp}.joblib` : pipeline de features seul
 
 ---
 
@@ -159,44 +162,44 @@ Dans `config/config.toml` :
 
 ## Architecture MLOps
 
-```mermaid
-flowchart LR
-    subgraph Data Pipeline
-        CSV[Text CSV files] --> DI
-        DI(Ingestion) --> PG[(PostgreSQL)]
-        Images[Images] --> DI
-    end
+L'architecture de la plateforme est organisée en 4 phases principales :
 
-    subgraph ML Pipeline
-        PG --> DV(Validation) --> DT(Transformation) --> MT(Training)
-    end
+### ETL (Extract, Transform, Load)
 
-    subgraph Services
-        MLflow[MLflow:5000]
-        API[API:8000]
-        Airflow[Airflow:8081]
-        Streamlit[Streamlit:8501]
-    end
+![Architecture ETL](streamlit_app/assets/ETL.drawio.svg)
 
-    MT --> MLflow
-    MT --> Artifacts[(models/)]
-    Artifacts --> API
-    Artifacts --> Streamlit
-    API --> Airflow
-    Airflow --> MT
-    API --> Users((Users))
-    Streamlit --> Users
-```
+---
+
+### Training (Entraînement)
+
+![Architecture Training](streamlit_app/assets/architecture.drawio.svg)
+
+---
+
+### Inference
+
+![Architecture Inference](streamlit_app/assets/inference.drawio.svg)
+
+---
+
+### Monitoring
+
+![Architecture Monitoring](streamlit_app/assets/monitoring.drawio.svg)
+
+---
 
 #### Composants principaux
 
-| Composant       | Description                                                                      |
-|-----------------|----------------------------------------------------------------------------------|
-| **PostgreSQL**  | Stockage des données produits (schéma `project.*`)                               |
-| **MLflow**      | Tracking des expériences et Model Registry                                       |
-| **FastAPI**     | Endpoint `/training/` pour lancer l'entraînement et `/predict/` pour l'inférence |
-| **Airflow**     | Orchestration automatique (DAG `rakuten_training_pipeline`)                      |
-| **Streamlit**   | Interface utilisateur interactive pour visualisation et démonstration             |
+| Composant        | Description                                                                      |
+|------------------|----------------------------------------------------------------------------------|
+| **PostgreSQL**   | Stockage des données produits (schéma `project.*`)                               |
+| **MLflow**       | Tracking des expériences et Model Registry                                       |
+| **FastAPI**      | Endpoint `/training/` pour lancer l'entraînement et `/predict/` pour l'inférence |
+| **Airflow**      | Orchestration automatique (DAG `rakuten_training_pipeline`)                      |
+| **Streamlit**    | Interface utilisateur interactive pour visualisation et démonstration            |
+| **Prometheus**   | Collecte des métriques système et applicatives                                   |
+| **Grafana**      | Visualisation des métriques et dashboards de monitoring                          |
+| **Node Exporter**| Export des métriques système (CPU, mémoire, disque)                              |
 
 ---
 
@@ -220,13 +223,23 @@ SELECT prdtypecode, COUNT(*) FROM project.items GROUP BY 1 ORDER BY 2 DESC LIMIT
 
 #### API FastAPI
 
-| Endpoint       | Méthode | Description                          |
-|----------------|---------|--------------------------------------|
-| `/`            | GET     | Page d'accueil avec liens            |
-| `/health`      | GET     | Health check (DB + modèle)           |
-| `/model/info`  | GET     | Infos sur le modèle chargé           |
-| `/training/`   | POST    | Lance l'entraînement complet         |
-| `/predict/`    | POST    | Prédiction *(non implémenté)*        |
+| Endpoint         | Méthode | Description                                              |
+|------------------|---------|----------------------------------------------------------|
+| `/`              | GET     | Page d'accueil avec liens                                |
+| `/health`        | GET     | Health check (DB + modèle)                               |
+| `/model/info`    | GET     | Infos sur le modèle chargé                               |
+| `/training/`     | POST    | Lance l'entraînement complet                             |
+| `/predict/`      | POST    | Prédiction via `multipart/form-data` (image + texte)     |
+| `/reload-model/` | POST    | Recharge le modèle `production` depuis MLflow            |
+
+**Exemple d'appel `/predict/`** :
+```bash
+# Le contenu de l'image est envoyé au format multipart/form-data
+curl -X POST "http://localhost:8000/predict/" \
+     -F "designation=iPhone 13" \
+     -F "description=Smartphone Apple" \
+     -F "image=@./mon_image.jpg"
+```
 
 Documentation Swagger : http://localhost:8000/docs
 
@@ -235,9 +248,11 @@ Documentation Swagger : http://localhost:8000/docs
 DAG `rakuten_training_pipeline` :
 1. Entraîne 3 modèles en parallèle (LR, XGBoost, LightGBM)
 2. Promeut automatiquement le meilleur vers MLflow (alias `production`)
+3. Recharge le modèle dans l'API via `/reload-model/`
+4. Log de succès
 
 **Configuration** :
-- Schedule : toutes les 15 minutes (`*/15 * * * *`)
+- Schedule : une fois par jour (`0 0 * * *`)
 - Métrique de sélection : `cv_f1_weighted_mean`
 - Les modèles sont entraînés via l'API FastAPI (`/training/`)
 
@@ -247,20 +262,53 @@ Application web interactive pour présenter le projet et fournir une interface d
 
 **Accès** : http://localhost:8501
 
+#### Monitoring (Prometheus + Grafana)
+
+Stack de monitoring pour surveiller les performances et la santé du système :
+
+- **Node Exporter** : collecte les métriques système (CPU, mémoire, disque, réseau)
+- **Prometheus** : agrège et stocke les métriques avec un système de requêtes PromQL
+- **Grafana** : visualisation via dashboards préconfigurés
+
+**Configuration** :
+- Dashboards Grafana : `grafana/dashboards/`
+- Configuration Prometheus : `prometheus/prometheus.yml`
+
 ---
 
 ## Structure détaillée du projet
 
 ```
 ├── airflow/              # DAGs et config Airflow
-├── api/                  # FastAPI (Dockerfile, main.py)
-├── config/               # config.toml, labels_map.json
-├── data/                 # Images et textes RAW (non versionné)
-├── etl/                  # manifest_and_hash.py
+│   └── dags/             # Définition du DAG rakuten_training_pipeline
+├── api/                  # FastAPI
+│   ├── src/              # Code source (main.py, schemas.py)
+│   └── Dockerfile        # Image Docker pour l'API
+├── config/               # Configuration
+│   ├── config.toml       # Configuration principale du pipeline
+│   ├── labels_map.json   # Mapping prdtypecode → labels lisibles
+│   ├── theme_map.json    # Mapping thématique des catégories
+│   └── translate_map_starter_from_cleaned.json  # Dictionnaire de traduction
+├── data/                 # Images et textes RAW (non versionné, via DVC)
+│   ├── raw/              # CSV sources
+│   └── images/           # Images train/test
+├── grafana/              # Configuration Grafana
+│   ├── dashboards/       # Dashboards JSON préconfigurés
+│   └── provisioning/     # Auto-provisioning des datasources
 ├── mlflow/               # Dockerfile MLflow
-├── models/               # Modèles entraînés (.joblib)
-├── postgres/             # Scripts SQL et init.sh
-├── scripts/              # CLI (train_pipeline.py)
+├── models/               # Modèles entraînés (.joblib versionnés)
+├── postgres/             # Base de données
+│   ├── sql/              # Scripts SQL d'initialisation
+│   ├── dump/             # Dumps SQL (optionnel, via DVC)
+│   └── init.sh           # Script d'init du container
+├── prometheus/           # Configuration Prometheus
+│   └── prometheus.yml    # Targets de scraping
+├── references/           # Documentation et références
+├── reports/              # Rapports générés
+├── scripts/              # CLI et scripts d'exécution
+│   ├── train_pipeline.py # Point d'entrée principal
+│   ├── predict.py        # Script de prédiction
+│   └── test_api.py       # Tests de l'API
 ├── src/                  # Code source
 │   ├── data/             # Chargement, sampling
 │   ├── features/         # Text, Image, CNN
@@ -272,14 +320,14 @@ Application web interactive pour présenter le projet et fournir une interface d
 ├── streamlit_app/        # App Streamlit
 │   ├── app.py            # Application principale
 │   ├── config.py         # Configuration (titre, équipe)
-│   ├── tabs/             # Onglets (intro, modelisation, conclusion)
-│   ├── assets/           # Images et ressources statiques
+│   ├── tabs/             # Onglets (intro, architecture, modelisation, demonstration, conclusion)
+│   ├── assets/           # Images, SVG et ressources statiques
 │   └── Dockerfile        # Image Docker pour Streamlit
 ├── tools/                # Scripts utilitaires
 ├── .env.example          # Template des variables d'environnement
 ├── docker-compose.yml    # Infrastructure as code : configuration des micro-services
 ├── LICENSE               # License du projet
-├── requirements.txt      # Dépendences Python du projet
+└── requirements.txt      # Dépendances Python du projet
 ```
 
 ---

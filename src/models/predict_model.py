@@ -48,6 +48,20 @@ class ProductPredictor:
 
                 self.model = loaded["model"]
                 self.label_encoder = loaded.get("label_encoder")
+                
+                # Verify that the model is a Pipeline (full_pipeline) that can handle raw inputs
+                from sklearn.pipeline import Pipeline
+                if isinstance(self.model, Pipeline):
+                    steps = self.model.steps
+                    if len(steps) >= 2 and steps[0][0] == "features":
+                        logger.info(
+                            "Modèle détecté comme full_pipeline avec feature_pipeline. "
+                            "Attend les inputs bruts: description, designation, image_binary"
+                        )
+                    elif len(steps) >= 1:
+                        logger.info(
+                            "Modèle détecté comme Pipeline avec %d step(s)", len(steps)
+                        )
 
                 if self.label_encoder is not None:
                     logger.info(

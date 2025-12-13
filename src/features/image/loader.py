@@ -1,108 +1,124 @@
 # features/image_loader.py
+"""
+ImageLoader - Charge les images depuis des bytes (image_binary).
+
+Mode unique: Utilise la colonne `image_binary` contenant des images en bytes bruts.
+Compatible avec les inputs de l'API: designation, description, image_binary.
+"""
 from __future__ import annotations
 
-import os
-from typing import Tuple, Optional, List, Any
+import io
+from typing import Tuple, Any, Optional
 
 import numpy as np
+import pandas as pd
 from PIL import Image
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from src.utils.profiling import profile_func, list_debug_add
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ImageLoader(BaseEstimator, TransformerMixin):
     """
-    Charger les pixels d'images à partir de `imageid` et `productid` en construisant
-    des chemins de type: image_{imageid}_product_{productid}<ext>
-
-    - Laisser les paramètres *inchangés* dans __init__ (compatibilité sklearn.clone).
-    - Redimensionner à `image_size` et normaliser dans [0,1].
-    - Renvoyer un tenseur (n_samples, H, W, 3) en float32.
-    - En cas d'erreur/fichier manquant, retourner un vecteur zéro (fallback).
+    Charge les pixels d'images depuis des données binaires (bytes).
+    
+    Attend une colonne `image_binary` contenant des images en bytes bruts.
+    Compatible avec les inputs de l'API FastAPI.
+    
+    - Redimensionne à `image_size` et normalise dans [0,1].
+    - Renvoie un tenseur (n_samples, H, W, 3) en float32.
+    - En cas d'erreur/image manquante, retourne un vecteur zéro (fallback).
     """
 
     @profile_func
     def __init__(
         self,
-        image_dir: str,
-        image_size: Any = (128, 128),   # ne pas forcer le type ici
-        imgid_col: str = "imageid",
-        pid_col: str = "productid",
+        image_size: Any = (128, 128),
+        image_col: str = "image_binary",
+        # Legacy parameters kept for sklearn.clone compatibility but ignored
+        image_dir: Optional[str] = None,
+        imgid_col: Optional[str] = None,
+        pid_col: Optional[str] = None,
         ext: str = ".jpg",
     ):
-        # Ne pas modifier les valeurs reçues (ex: pas de tuple(), pas de int())
-        self.image_dir = image_dir
         self.image_size = image_size
+        self.image_col = image_col
+        # Legacy params (ignored)
+        self.image_dir = image_dir
         self.imgid_col = imgid_col
         self.pid_col = pid_col
         self.ext = ext
 
-    # --- API sklearn ------------------------------------------------------------
-
     @profile_func
     def fit(self, X=None, y=None):
-        # ne rien apprendre
         return self
 
     @profile_func
     def _resolve_size(self) -> Tuple[int, int]:
-        """
-        Sécuriser/convertir la taille *au moment de l'usage* (pas dans __init__).
-        Accepter tuple, liste, numpy array…
-        """
+        """Convertit image_size en tuple (H, W)."""
         sz = self.image_size
         try:
             H = int(sz[0])
             W = int(sz[1])
         except Exception:
-            # défaut robuste
             H, W = 128, 128
         return H, W
 
     @profile_func
-    def _build_path(self, imgid: Any, pid: Any) -> str:
-        """Construire le chemin d'une image à partir des ids."""
-        # convertir prudemment en int -> str
+    def _process_image_bytes(self, image_bytes: bytes) -> Optional[np.ndarray]:
+        """Traite des bytes d'image et retourne un array normalisé."""
         try:
-            iid = str(int(imgid))
+            img = Image.open(io.BytesIO(image_bytes))
+            img = img.convert("RGB")
+            
+            H, W = self._resolve_size()
+            img = img.resize((W, H))  # PIL: (width, height)
+            arr = np.asarray(img, dtype=np.float32)
+            
+            # Normaliser en [0,1]
+            if arr.max() > 1.0:
+                arr /= 255.0
+            
+            return arr if arr.shape == (H, W, 3) else None
         except Exception:
-            iid = str(imgid)
-        try:
-            pid_str = str(int(pid))
-        except Exception:
-            pid_str = str(pid)
-        fname = f"image_{iid}_product_{pid_str}{self.ext}"
-        return os.path.join(self.image_dir, fname)
+            return None
 
     @profile_func
     def transform(self, X):
         """
-        X: DataFrame avec colonnes `imageid` et `productid`.
+        X: DataFrame avec colonne `image_binary` (bytes).
         Retour: np.ndarray (n, H, W, 3) float32 dans [0,1].
         """
         list_debug_add("ImageLoader.transform : " + str(X.shape[0]))
         H, W = self._resolve_size()
+        n_samples = len(X)
+        out = np.zeros((n_samples, H, W, 3), dtype=np.float32)
 
-        # extraire colonnes (laisser pandas gérer les types)
-        imgids = X[self.imgid_col].tolist()
-        pids   = X[self.pid_col].tolist()
+        if self.image_col not in X.columns:
+            logger.warning(
+                f"ImageLoader: Colonne '{self.image_col}' non trouvée. "
+                f"Colonnes disponibles: {list(X.columns)}. "
+                "Retourne des images vides."
+            )
+            return out
 
-        paths: List[str] = [self._build_path(iid, pid) for iid, pid in zip(imgids, pids)]
-        out = np.zeros((len(paths), H, W, 3), dtype=np.float32)
-
-        for i, p in enumerate(paths):
-            try:
-                with Image.open(p) as img:
-                    img = img.convert("RGB").resize((W, H))  # PIL: (width, height)
-                    arr = np.asarray(img, dtype=np.float32)
-                # normaliser en [0,1] seulement si besoin (éviter /0)
-                if arr.max() > 1.0:
-                    arr /= 255.0
-                if arr.shape == (H, W, 3):
+        image_binaries = X[self.image_col].tolist()
+        
+        for i, img_binary in enumerate(image_binaries):
+            if pd.isna(img_binary) or img_binary is None:
+                continue  # Garder les zéros (fallback)
+            
+            if isinstance(img_binary, bytes):
+                arr = self._process_image_bytes(img_binary)
+                if arr is not None:
                     out[i] = arr
-                # sinon: garder les zéros (fallback)
-            except Exception:
-                # fichier manquant/corrompu -> garder le vecteur zéro
-                pass
+            else:
+                logger.warning(
+                    f"ImageLoader: image_binary[{i}] n'est pas des bytes "
+                    f"(type: {type(img_binary)}). Ignoré."
+                )
 
         return out

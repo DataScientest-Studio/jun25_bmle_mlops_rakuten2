@@ -82,6 +82,22 @@ services:
       - mlflow
     networks:
       - mlops_network
+    # Resource limits to prevent OOM kills
+    deploy:
+      resources:
+        limits:
+          memory: 14G
+          cpus: '9.0'
+        reservations:
+          memory: 4G
+          cpus: '2.0'
+    # Health check to monitor container status
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   airflow:
     image: apache/airflow:2.8.1
@@ -107,9 +123,11 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow/plugins:/opt/airflow/plugins
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     command: >
       bash -c "
+        chmod -R 777 /opt/airflow/logs 2>/dev/null || true
         airflow db init
         airflow users create --username ${AIRFLOW_USER} --password ${AIRFLOW_PASSWORD} --firstname Admin --lastname User --role Admin --email ${AIRFLOW_EMAIL} 2>/dev/null || true &&
         airflow webserver -p 8080 & airflow scheduler

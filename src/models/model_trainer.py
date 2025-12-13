@@ -136,6 +136,10 @@ class ModelTrainer:
             )
             logger.info("  N estimators: %s", lgbm_params.get("n_estimators", 100))
             logger.info("  Learning rate: %s", lgbm_params.get("learning_rate", 0.1))
+            logger.info("  Num leaves: %s", lgbm_params.get("num_leaves", 31))
+            logger.info("  Max bin: %s", lgbm_params.get("max_bin", 255))
+            num_threads = lgbm_params.get("num_threads", "auto")
+            logger.info("  Num threads: %s", num_threads)
 
         else:
             raise ValueError(

@@ -345,12 +345,23 @@ def load_from_postgres(db_config: dict, dataset_hash: Optional[str] = None):
         X_train = df_train.drop(columns=['prdtypecode'])
         y_train = df_train['prdtypecode']
         
+        # Stocker productid séparément pour PostgreSQL splits (avant de le supprimer)
+        productids_train = X_train['productid'].copy() if 'productid' in X_train.columns else None
+        
+        # OPTIMISATION: Ne PAS convertir en base64 pour l'entraînement
+        # Les images seront chargées directement depuis le filesystem par CNNFeaturizer/ImageLoader
+        # Cela est 2-3x plus rapide et optimal pour ResNet fine-tuning
+        logger.info("\nMode optimal: Images chargées directement depuis filesystem (pas de base64)")
+        logger.info("  imageid/productid conservés pour construction des chemins d'images")
+        logger.info("  Ces IDs ne sont PAS des features - ils servent uniquement à charger les images")
+        
         #  CRÉER un row_index technique pour compatibilité
         X_train = X_train.reset_index().rename(columns={'index': 'row_index'})
         
         logger.info(f" X_train: {X_train.shape}")
         logger.info(f" y_train: {y_train.shape}")
         logger.info(f"  Colonnes: {list(X_train.columns)}")
+        logger.info(f"  Note: imageid/productid présents pour chargement images (pas des features)")
         
         # ================================================================
         # CHARGER TEST (sans labels) - SANS row_index
@@ -377,11 +388,21 @@ def load_from_postgres(db_config: dict, dataset_hash: Optional[str] = None):
             config = load_config()
             X_test = load_test_data(config.paths["x_test_csv"])
         
+        # Stocker productid séparément pour référence (avant de le supprimer)
+        productids_test = X_test['productid'].copy() if 'productid' in X_test.columns else None
+        
+        # OPTIMISATION: Ne PAS convertir en base64 pour le test
+        # Les images seront chargées directement depuis le filesystem
+        if len(X_test) > 0:
+            logger.info("\nMode optimal: Images de test chargées directement depuis filesystem")
+            logger.info("  imageid/productid conservés pour construction des chemins")
+        
         #  CRÉER un row_index technique pour compatibilité
         X_test = X_test.reset_index().rename(columns={'index': 'row_index'})
         
         logger.info(f" X_test: {X_test.shape}")
         logger.info(f"  Colonnes: {list(X_test.columns)}")
+        logger.info(f"  Note: imageid/productid présents pour chargement images (pas des features)")
         
         logger.info("\n" + "=" * 70)
         logger.info(f" Chargement terminé: {len(X_train)} train + {len(X_test)} test")
@@ -561,11 +582,11 @@ def main():
                 # Récupérer le dataset_id du dernier dataset
                 dataset_id = registry.get_latest_dataset_id()
                 
-                if dataset_id and 'productid' in X_train.columns:
+                if dataset_id and productids_train is not None:
                     logger.info("\nEnregistrement du split 'train' dans PostgreSQL...")
                     
-                    # Extraire les productid uniques
-                    productids = X_train['productid'].dropna().unique()
+                    # Extraire les productid uniques (depuis la variable stockée séparément)
+                    productids = productids_train.dropna().unique()
                     
                     # Enregistrer avec la fonction corrigée
                     registry.register_split(
@@ -683,12 +704,12 @@ def main():
                 
                 logger.info(f" Modèle enregistré (ID: {model_id})")
                 
-                # Enregistrer les prédictions test
-                if 'productid' in X_test.columns:
+                # Enregistrer les prédictions test (utiliser productids_test stocké séparément)
+                if productids_test is not None:
                     registry.register_predictions(
                         model_id=model_id,
                         predictions=pd.Series(test_results["predictions"]),
-                        product_ids=X_test['productid'],
+                        product_ids=productids_test,
                         metadata={"dataset": "test", "timestamp": timestamp}
                     )
                 

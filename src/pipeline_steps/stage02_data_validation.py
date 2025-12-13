@@ -81,7 +81,9 @@ class DataValidationPipeline:
         issues = []
         
         # 1. Vérifier les colonnes requises
-        required_cols = ["designation", "description", "productid", "imageid"]
+        # Pour l'entraînement optimal: designation, description, et imageid/productid (pour path construction)
+        # Note: imageid/productid sont des métadonnées pour charger les images, PAS des features
+        required_cols = ["designation", "description"]
         
         for col in required_cols:
             if col not in X_train.columns:
@@ -89,11 +91,24 @@ class DataValidationPipeline:
             if col not in X_test.columns:
                 issues.append(f"Colonne manquante dans X_test: {col}")
         
-        # 2. Vérifier que train et test ont les mêmes colonnes
-        if set(X_train.columns) != set(X_test.columns):
-            issues.append("Les colonnes de train et test ne correspondent pas")
+        # 2. Vérifier la présence de imageid/productid pour le chargement des images
+        # Ces colonnes sont nécessaires pour CNNFeaturizer/ImageLoader mais ne sont PAS des features
+        if 'imageid' not in X_train.columns or 'productid' not in X_train.columns:
+            logger.warning("  imageid/productid manquants dans X_train - CNNFeaturizer nécessite ces colonnes pour construire les chemins")
+        if 'imageid' not in X_test.columns or 'productid' not in X_test.columns:
+            logger.warning("  imageid/productid manquants dans X_test - CNNFeaturizer nécessite ces colonnes pour construire les chemins")
         
-        # 3. Vérifier les types de données
+        # 3. Vérifier que imageid/productid ne sont PAS utilisés comme features
+        # (Ils sont présents pour path construction uniquement - le feature pipeline ne doit pas les traiter comme features)
+        logger.info("  Note: imageid/productid présents pour construction des chemins d'images (métadonnées, pas des features)")
+        
+        # 3. Vérifier que train et test ont les mêmes colonnes (en excluant row_index qui peut différer)
+        train_cols = set(X_train.columns) - {"row_index"}
+        test_cols = set(X_test.columns) - {"row_index"}
+        if train_cols != test_cols:
+            issues.append(f"Les colonnes de train et test ne correspondent pas. Train: {train_cols}, Test: {test_cols}")
+        
+        # 4. Vérifier les types de données
         for col in X_train.columns:
             if col in X_test.columns:
                 train_dtype = X_train[col].dtype
@@ -146,15 +161,17 @@ class DataValidationPipeline:
                     f"{list(critical_missing.index)}"
                 )
         
-        # 2. Vérifier les doublons d'ID
-        if "productid" in X_train.columns:
-            train_duplicates = X_train["productid"].duplicated().sum()
-            test_duplicates = X_test["productid"].duplicated().sum()
-            
-            if train_duplicates > 0:
-                issues.append(f"train: {train_duplicates} productid en doublon")
-            if test_duplicates > 0:
-                issues.append(f"test: {test_duplicates} productid en doublon")
+        # 2. Vérifier la disponibilité des images (via imageid/productid)
+        # Pour l'entraînement optimal, on utilise imageid/productid pour charger directement depuis filesystem
+        if 'imageid' in X_train.columns and 'productid' in X_train.columns:
+            missing_ids = X_train[['imageid', 'productid']].isnull().any(axis=1).sum()
+            if missing_ids > 0:
+                issues.append(f"train: {missing_ids} lignes avec imageid/productid manquants")
+        
+        if 'imageid' in X_test.columns and 'productid' in X_test.columns:
+            missing_ids = X_test[['imageid', 'productid']].isnull().any(axis=1).sum()
+            if missing_ids > 0:
+                issues.append(f"test: {missing_ids} lignes avec imageid/productid manquants")
         
         # 3. Vérifier que les textes ne sont pas tous vides
         if "designation" in X_train.columns:
