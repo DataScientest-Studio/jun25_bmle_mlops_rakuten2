@@ -66,6 +66,9 @@ class TextStatistics(BaseEstimator, TransformerMixin):
     Sortie: ndarray (n_samples, 4) = [n_mots, len_moyenne, diversité_lexicale, ratio_majuscules]
     """
 
+    def __init__(self):
+        super().__init__()
+
     @profile_func
     def fit(self, X, y=None):
         return self
@@ -101,6 +104,7 @@ class LanguageDetector(BaseEstimator, TransformerMixin):
     """
     @profile_func
     def __init__(self, languages: Optional[List[str]] = None, min_length: int = 10, max_chars: int = 500):
+        super().__init__()
         self.languages = languages or ["fr", "en", "de"]
         self.min_length = int(min_length)
         self.max_chars = int(max_chars)
@@ -154,6 +158,9 @@ class TextStatisticsPro(BaseEstimator, TransformerMixin):
              "nintendo switch", "xbox", "xbox one", "xbox series", "ps4", "ps5", "playstation", "playstation 4", "playstation 5") 
     STREAMING = ("streaming", "stream", "digital", "code", "origin", "uplay", "steam", "epic", "gog", "battle.net", "clé" )
     PUZZLE = ("puzzle", "casse-tête", "casse tete", "énigme", "enigme")
+
+    def __init__(self):
+        super().__init__()
 
     def fit(self, X, y=None):
         self._UNITS_F = {_fold(t) for t in self.UNITS}
@@ -268,6 +275,7 @@ class Chi2LexiconFeatures(BaseEstimator, TransformerMixin):
         max_features: int = 120_000,
         binary: bool = False,
     ):
+        super().__init__()
         self.top_k = int(top_k)
         self.min_df = min_df
         self.max_df = max_df

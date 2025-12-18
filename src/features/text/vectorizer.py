@@ -36,6 +36,7 @@ class TextTfidfVectorizer(BaseEstimator, TransformerMixin):
         stop_words: StopWords = None,
         analyzer: str = "word",   # "word" | "char" | "char_wb"       
     ):
+        super().__init__()
         # stocker explicitement chaque paramètre (clone-friendly)
         self.max_features = max_features
         self.ngram_range = ngram_range

@@ -44,6 +44,7 @@ class ImageLoader(BaseEstimator, TransformerMixin):
         pid_col: Optional[str] = None,
         ext: str = ".jpg",
     ):
+        super().__init__()
         self.image_size = image_size
         self.image_col = image_col
         # Legacy params (ignored)

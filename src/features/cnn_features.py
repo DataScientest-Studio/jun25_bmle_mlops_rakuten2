@@ -139,6 +139,7 @@ class CNNFeaturizer(BaseEstimator, TransformerMixin):
         random_resized_crop_ratio: Tuple[float, float] = (0.95, 1.05),
         label_smoothing: float = 0.0, 
     ):
+        super().__init__()
         self.image_dir = image_dir
         self.arch = arch
         self.batch_size = int(batch_size)

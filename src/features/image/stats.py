@@ -55,6 +55,7 @@ class ImageStatsCombinedFeaturizer(BaseEstimator, TransformerMixin):
         imgid_col=None,
         pid_col=None,
     ):
+        super().__init__()
         self.image_col = image_col
         self.white_threshold = int(white_threshold)
         self.black_threshold = int(black_threshold)

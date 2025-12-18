@@ -103,6 +103,7 @@ class TextCleaner(BaseEstimator, TransformerMixin):
         handle_emojis: bool = True,
         remove_numbers: bool = False,
     ):
+        super().__init__()
         # Attributs utilisateur
         self.combine_cols = combine_cols
         self.remove_html = remove_html
@@ -226,6 +227,7 @@ class HasDescriptionFlag(BaseEstimator, TransformerMixin):
     @profile_func
     def __init__(self, col_name: str = "description", 
                  out_name: str = "has_description"):
+        super().__init__()
         self.col_name = col_name
         self.out_name = out_name
 
@@ -244,6 +246,7 @@ class DesignationLength(BaseEstimator, TransformerMixin):
     """Feature numérique donnant la longueur de la désignation."""
     
     def __init__(self, col_name: str = "designation"):
+        super().__init__()
         self.col_name = col_name
 
     def fit(self, X, y=None):
@@ -260,6 +263,7 @@ class LanguageFeaturizer(BaseEstimator, TransformerMixin):
     
     @profile_func
     def __init__(self, min_length: int = 5):
+        super().__init__()
         self.min_length = min_length
         
     @profile_func

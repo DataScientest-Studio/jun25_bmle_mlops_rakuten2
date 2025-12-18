@@ -667,6 +667,32 @@ async def train_model(request: TrainingRequest):
             mlflow.log_param("train_features", X_train.shape[1] if hasattr(X_train, 'shape') else 'unknown')
             mlflow.log_param("num_classes", len(y_train.unique()) if hasattr(y_train, 'unique') else 'unknown')
 
+            # Log datasets to MLflow
+            try:
+                # Log training dataset (text columns only for efficiency)
+                train_cols = [c for c in ['designation', 'description'] if c in X_train.columns]
+                if train_cols:
+                    train_dataset = mlflow.data.from_pandas(
+                        X_train[train_cols],
+                        source="postgres://rakuten/train",
+                        name="train_data"
+                    )
+                    mlflow.log_input(train_dataset, context="training")
+                    logger.info("Dataset d'entraînement loggé dans MLflow")
+
+                # Log test dataset
+                test_cols = [c for c in ['designation', 'description'] if c in X_test.columns]
+                if test_cols:
+                    test_dataset = mlflow.data.from_pandas(
+                        X_test[test_cols],
+                        source="postgres://rakuten/test",
+                        name="test_data"
+                    )
+                    mlflow.log_input(test_dataset, context="testing")
+                    logger.info("Dataset de test loggé dans MLflow")
+            except Exception as e:
+                logger.warning(f"Erreur lors du logging des datasets: {e}")
+
             logger.info("Stage 2: Data Validation")
             stage2 = DataValidationPipeline(config)
             validation_ok = stage2.run(X_train, y_train, X_test)
@@ -718,6 +744,32 @@ async def train_model(request: TrainingRequest):
             stage4 = ModelTrainingPipeline(config)
             model = stage4.run(X_train_t, y_train_t, feature_pipeline)
 
+            # Log model hyperparameters
+            model_type = config.model.get("name", "unknown").lower()
+            mlflow.log_param("model_type", model_type)
+            
+            try:
+                if model_type == "lgbm":
+                    lgbm_params = config.model.get("lgbm", {})
+                    for key, value in lgbm_params.items():
+                        mlflow.log_param(f"lgbm_{key}", value)
+                    logger.info(f"Hyperparamètres LGBM loggés: {list(lgbm_params.keys())}")
+                elif model_type == "xgb":
+                    xgb_params = config.model.get("xgb", {})
+                    for key, value in xgb_params.items():
+                        mlflow.log_param(f"xgb_{key}", value)
+                    logger.info(f"Hyperparamètres XGB loggés: {list(xgb_params.keys())}")
+                elif model_type == "lr":
+                    lr_params = config.model.get("lr", {})
+                    for key, value in lr_params.items():
+                        mlflow.log_param(f"lr_{key}", value)
+                elif model_type == "svc":
+                    svc_params = config.model.get("svc", {})
+                    for key, value in svc_params.items():
+                        mlflow.log_param(f"svc_{key}", value)
+            except Exception as e:
+                logger.warning(f"Erreur lors du logging des hyperparamètres: {e}")
+
             # Construction du pipeline complet (features + modèle)
             logger.info("Construction du pipeline complet (features + modèle)")
             full_model = Pipeline(
@@ -763,6 +815,7 @@ async def train_model(request: TrainingRequest):
             logger.info(f"Pipeline complet sauvegardé dans {full_model_path}")
 
             # Logger les métriques CV dans MLflow
+            cv_metrics_logged = False
             if hasattr(stage4.trainer, "cv_scores_") and stage4.trainer.cv_scores_:
                 cv_scores = stage4.trainer.cv_scores_
                 if "f1_weighted" in cv_scores:
@@ -784,6 +837,31 @@ async def train_model(request: TrainingRequest):
                         "Métriques CV loggées: F1=%.4f",
                         cv_scores["f1_weighted"]["mean"],
                     )
+                    cv_metrics_logged = True
+
+            # Fallback: compute metrics on training data if CV was not performed
+            if not cv_metrics_logged:
+                logger.info("CV non activée - calcul des métriques sur données d'entraînement")
+                try:
+                    from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
+                    
+                    y_pred_train = model.predict(X_train_t)
+                    
+                    f1_weighted = float(f1_score(y_train_t, y_pred_train, average='weighted'))
+                    f1_macro = float(f1_score(y_train_t, y_pred_train, average='macro'))
+                    accuracy = float(accuracy_score(y_train_t, y_pred_train))
+                    precision = float(precision_score(y_train_t, y_pred_train, average='weighted', zero_division=0))
+                    recall = float(recall_score(y_train_t, y_pred_train, average='weighted', zero_division=0))
+                    
+                    mlflow.log_metric("train_f1_weighted", f1_weighted)
+                    mlflow.log_metric("train_f1_macro", f1_macro)
+                    mlflow.log_metric("train_accuracy", accuracy)
+                    mlflow.log_metric("train_precision_weighted", precision)
+                    mlflow.log_metric("train_recall_weighted", recall)
+                    
+                    logger.info(f"Métriques train loggées: F1={f1_weighted:.4f}, Accuracy={accuracy:.4f}")
+                except Exception as e:
+                    logger.warning(f"Erreur lors du calcul des métriques train: {e}")
 
             logger.info("Stage 5: Model Evaluation")
 
@@ -820,13 +898,6 @@ async def train_model(request: TrainingRequest):
             raw_name = (model_name or "model").strip().lower()
             safe_name = re.sub(r"[^a-z0-9_]+", "_", raw_name)
             mlflow.set_tag("algo", safe_name)
-
-            # Logger les métriques dans MLflow
-            if metrics and isinstance(metrics, dict):
-                for key, value in metrics.items():
-                    if isinstance(value, (int, float)):
-                        mlflow.log_metric(key, value)
-                        logger.info("Métrique loggée: %s=%.4f", key, value)
 
             # Construct model path with timestamp versioning
             model_path_template = config.paths.get(
