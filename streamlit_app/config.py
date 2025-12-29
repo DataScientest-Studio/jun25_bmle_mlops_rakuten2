@@ -17,6 +17,8 @@ TEAM_MEMBERS = [
     ),
     Member(
         name="Julie COLLEONI",
+        linkedin_url="https://www.linkedin.com/in/julie-colleoni/",
+        github_url="https://github.com/ghjulia01",
     ),
     Member(
         name="Claude JEANNE",
